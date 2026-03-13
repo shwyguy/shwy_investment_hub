@@ -2,7 +2,7 @@ name: Weekly Contribution
 
 on:
   schedule:
-    - cron: '30 15 * * 5'  # Every Tuesday at 10:30am ET
+    - cron: '00 15 * * 2'  # Every Tuesday at 10:30am ET
   workflow_dispatch:        # Allows manual trigger from GitHub UI
 
 jobs:
@@ -20,4 +20,4 @@ jobs:
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-        run: python alpaca_contribute.py
+        run: python alpaca_contribute.py --amount 1100

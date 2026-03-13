@@ -2,7 +2,7 @@ name: Weekly Contribution
 
 on:
   schedule:
-    - cron: '30 15 * * 2'  # Every Tuesday at 10:30am ET
+    - cron: '30 15 * * 5'  # Every Tuesday at 10:30am ET
   workflow_dispatch:        # Allows manual trigger from GitHub UI
 
 jobs:

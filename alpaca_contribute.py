@@ -69,7 +69,7 @@ from alpaca.trading.enums import OrderSide, TimeInForce
 
 ALPACA_API_KEY    = os.environ.get("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY")
-PAPER_TRADING     = True
+PAPER_TRADING     = False
 
 MIN_CONTRIBUTION  = 10.00
 
@@ -123,10 +123,12 @@ ETF_CATS = {
     # Equities — Industry
     "ITA":  "Industry",
     "IGV":  "Industry",
+    "IHE":  "Industry",
     # Equities — Sector
     "IYK":  "Sector",
     "IYH":  "Sector",
     "IYW":  "Sector",
+    "IYE":  "Sector",
     # Equities — Thematic
     "ARTY": "Thematic",
     "ICLN": "Thematic",
@@ -138,7 +140,7 @@ ETF_SLOT_RATIOS = {
     "IAUM": 7,
     "SLV":  2,
     # Crypto
-    "IBIT": 2,
+    "IBIT": 4,
     "ETHA": 1,
     # Bonds
     "TLT":  2,
@@ -153,11 +155,14 @@ ETF_SLOT_RATIOS = {
     "EWJ":  1,
     "MCHI": 1,
     # Equities — Industry
-    "ITA":  1,
-    "IGV":  1,
+    "ITA":  6,
+    "IGV":  4,
+    "IHE":  1,
     # Equities — Sector
-    "IYK":  1,
-    "IYH":  1,
+    "IYK":  2,
+    "IYH":  2,
+    "IYE":  1,
+    "IYW":  1,
     # Equities — Thematic
     "ARTY": 1,
     "ICLN": 1,

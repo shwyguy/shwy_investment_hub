@@ -251,6 +251,8 @@ def calc_softmax(scores: dict[str, float]) -> dict[str, float]:
 
 # Calculates how far off target a bucket is as a percentage of its target
 def calc_pct_off_target(current: float, target: float) -> float:
+    if target == 0:
+        return 0.0
     return (target - current) / target
 
 # Calculates the minimax drift correction allocations across all buckets

@@ -1,0 +1,22 @@
+name: Weekly Contribution
+
+on:
+  schedule:
+    - cron: '30 15 * * 2'  # Every Tuesday at 10:30am ET
+  workflow_dispatch:        # Allows manual trigger from GitHub UI
+
+jobs:
+  contribute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install alpaca-py yfinance pandas numpy
+      - name: Run contribution script
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python alpaca_contribute.py

@@ -140,8 +140,8 @@ ETF_SLOT_RATIOS = {
     "IAUM": 7,
     "SLV":  2,
     # Crypto
-    "IBIT": 4,
-    "ETHA": 1,
+    "IBIT": 7,
+    "ETHA": 2,
     # Bonds
     "TLT":  2,
     "MUB":  1,
@@ -155,14 +155,11 @@ ETF_SLOT_RATIOS = {
     "EWJ":  1,
     "MCHI": 1,
     # Equities — Industry
-    "ITA":  6,
-    "IGV":  4,
-    "IHE":  1,
+    "ITA":  1,
+    "IGV":  1,
     # Equities — Sector
-    "IYK":  2,
-    "IYH":  2,
+    "IYK":  1,
     "IYE":  1,
-    "IYW":  1,
     # Equities — Thematic
     "ARTY": 1,
     "ICLN": 1,
@@ -535,7 +532,7 @@ def main():
 
     bm_mean = calc_average_recent_return(prices[BENCHMARK_MEAN_TICKER], AVERAGING_WINDOW)
     vix = yf.download(BENCHMARK_SD_TICKER, period="10d", auto_adjust=False, progress=False)["Close"]
-    bm_sd = float(vix.dropna().tail(AVERAGING_WINDOW).mean().iloc[0]) / 100
+    bm_sd = float(vix.dropna().tail(AVERAGING_WINDOW).mean().iloc[0]) / 2 / 100
 
     # ── LAYERS ──
     l1 = layer1(bucket_values, contribution)

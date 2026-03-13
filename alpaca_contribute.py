@@ -533,7 +533,7 @@ def main():
 
     bm_mean = calc_average_recent_return(prices[BENCHMARK_MEAN_TICKER], AVERAGING_WINDOW)
     vix = yf.download(BENCHMARK_SD_TICKER, period="10d", auto_adjust=False, progress=False)["Close"]
-    bm_sd = float(vix.dropna().tail(AVERAGING_WINDOW).mean().iloc[0]) / 2 / 100
+    bm_sd = float(vix.dropna().tail(AVERAGING_WINDOW).mean().iloc[0]) / 100
 
     # ── LAYERS ──
     l1 = layer1(bucket_values, contribution)

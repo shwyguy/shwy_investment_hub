@@ -15,9 +15,11 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install alpaca-py yfinance pandas numpy
+        run: pip install alpaca-py requests yfinance pandas numpy exchange-calendars pytz
       - name: Run contribution script
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-        run: python alpaca_contribute.py --dry-run
+          PUBLIC_SECRET_KEY: ${{ secrets.PUBLIC_SECRET_KEY }}
+          PUBLIC_ACCOUNT_ID: ${{ secrets.PUBLIC_ACCOUNT_ID }}
+        run: python public_contribute.py --dry-run

@@ -387,15 +387,12 @@ def layer2(equity_amount: float, prices: pd.DataFrame, bm_mean: float, bm_sd: fl
 
     # Rank and select top n funded sub-buckets by normalized score
     ranked = sorted(normalized.items(), key=lambda x: x[1], reverse=True)
-    if equity_amount < 4:
-        funded_scores = dict(ranked[:1])
-    elif equity_amount < 6:
-        funded_scores = dict(ranked[:2])
-    elif equity_amount < 8:
-        funded_scores = dict(ranked[:3])
-    else:
-        funded_scores = dict(ranked[:4])
-
+    funded_scores = {}
+    for n in range(len(SUB_BUCKETS), 0, -1):
+        if equity_amount >= n * FLOOR_CAT:
+            funded_scores = dict(ranked[:n])
+            break
+            
     # Softmax on funded sub-buckets only
     weights = calc_softmax(funded_scores)
 

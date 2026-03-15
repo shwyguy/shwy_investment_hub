@@ -128,8 +128,9 @@ ETF_CATS = {
     "IHE":  "Industry",
     # Equities — Sector
     "IYK":  "Sector",
-    "IYE":  "Sector",
+    "IYH":  "Sector",
     "IYW":  "Sector",
+    "IYE":  "Sector",
     # Equities — Thematic
     "ARTY": "Thematic",
     "ICLN": "Thematic",
@@ -141,8 +142,8 @@ ETF_SLOT_RATIOS = {
     "IAUM": 7,
     "SLV":  2,
     # Crypto
-    "IBIT": 2,
-    "ETHA": 1,
+    "IBIT": 7,
+    "ETHA": 2,
     # Bonds
     "TLT":  2,
     "MUB":  1,
@@ -165,7 +166,6 @@ ETF_SLOT_RATIOS = {
     "ARTY": 1,
     "ICLN": 1,
 }
-
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────

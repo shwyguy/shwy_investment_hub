@@ -175,7 +175,7 @@ def get_access_token() -> str:
     response = requests.post(
         "https://api.public.com/userapiauthservice/personal/access-tokens",
         json={"secret": PUBLIC_SECRET_KEY}
-    
+    )
     response.raise_for_status()
     return response.json()["accessToken"]
 

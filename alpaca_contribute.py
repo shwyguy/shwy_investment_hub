@@ -79,26 +79,26 @@ MIN_CONTRIBUTION  = 10.00
 
 # ── STABLE — core algorithm structure, don't touch ──
 BUCKETS            = ["Equities", "Metals", "Crypto", "Bonds", "REITs", "Commodities"]
-SUB_BUCKETS        = ["Thematic", "Country", "Industry", "Sector"]
+SUB_BUCKETS        = ["Thematic", "Industry", "Sector", "Developed", "Emerging"]
 NON_EQUITY_BUCKETS = ["Metals", "Crypto", "Bonds", "REITs", "Commodities"]
 
 FLOOR_CAT = 2.00
 FLOOR_ETF = 1.00
 
 # ── ADJUST IF STRATEGY CHANGES ──────────────────────
-SCORING_LOOKBACK = 63
+SCORING_LOOKBACK = 252
 AVERAGING_WINDOW = 5
 
 BENCHMARK_MEAN_TICKER = "SPY"
 BENCHMARK_SD_TICKER   = "^VIX"
 
 TARGET_ALLOC = {
-    "Equities":    0.40,
+    "Equities":    0.50,
     "Metals":      0.15,
     "Crypto":      0.15,
-    "Bonds":       0.10,
+    "Bonds":       0.05,
     "REITs":       0.10,
-    "Commodities": 0.10,
+    "Commodities": 0.05,
 }
 
 ETF_CATS = {
@@ -117,9 +117,12 @@ ETF_CATS = {
     # Commodities
     "CMDY": "Commodities",
     "COMT": "Commodities",
-    # Equities — Country
-    "EWJ":  "Country",
-    "MCHI": "Country",
+    # Equities — Developed
+    "EWJ":  "Developed",
+    "EWG":  "Developed",
+    # Equities — Emerging
+    "MCHI": "Emerging",
+    "INDA": "Emerging",
     # Equities — Industry
     "ITA":  "Industry",
     "IGV":  "Industry",
@@ -151,15 +154,18 @@ ETF_SLOT_RATIOS = {
     # Commodities
     "CMDY": 1,
     "COMT": 1,
-    # Equities — Country
+    # Equities — Developed
     "EWJ":  1,
+    "EWG":  1,
+    # Equities — Emerging
     "MCHI": 1,
+    "INDA": 1,
     # Equities — Industry
     "ITA":  1,
     "IGV":  1,
     # Equities — Sector
     "IYK":  1,
-    "IYE":  1,
+    "IYH":  1,
     # Equities — Thematic
     "ARTY": 1,
     "ICLN": 1,

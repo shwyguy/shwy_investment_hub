@@ -554,7 +554,7 @@ def print_diagnostics(bucket_values, cash, l1, l2, raw_scores, bm_mean, bm_sd, l
     for etf, amount in l3.items():
         cat = ETF_CATS.get(etf)
         if cat in SUB_BUCKETS:
-            new_bucket_values["Equities"] + amount
+            new_bucket_values["Equities"] += amount
         elif cat:
             new_bucket_values[cat] += amount
 

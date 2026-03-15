@@ -22,4 +22,4 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           PUBLIC_SECRET_KEY: ${{ secrets.PUBLIC_SECRET_KEY }}
           PUBLIC_ACCOUNT_ID: ${{ secrets.PUBLIC_ACCOUNT_ID }}
-        run: python taxable_contribute.py --dry-run
+        run: python taxable_contribute.py --brokerage alpaca --dry-run

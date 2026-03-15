@@ -357,14 +357,43 @@ def layer2(equity_amount: float, prices: pd.DataFrame, bm_mean: float, bm_sd: fl
 
     # Rank and select top n funded sub-buckets by normalized score
     ranked = sorted(normalized.items(), key=lambda x: x[1], reverse=True)
-    if equity_amount < 4:
-        funded_scores = dict(ranked[:1])
-    elif equity_amount < 6:
-        funded_scores = dict(ranked[:2])
-    elif equity_amount < 8:
-        funded_scores = dict(ranked[:3])
-    else:
-        funded_scores = dict(ranked[:4])
+    def layer2(equity_amount: float, prices: pd.DataFrame, bm_mean: float, bm_sd: float) -> tuple[dict[str, float], dict[str, float]]:
+    # Score each sub-bucket using only ETFs in ETF_SLOT_RATIOS, weighted by ratio
+    raw_scores = {}
+    for sub in SUB_BUCKETS:
+        etfs = [ticker for ticker in ETF_SLOT_RATIOS.keys() if ETF_CATS.get(ticker) == sub]
+        ratios = [ETF_SLOT_RATIOS[etf] for etf in etfs]
+        scores = [calc_average_recent_return(prices[etf], AVERAGING_WINDOW) for etf in etfs]
+        total_ratio = sum(ratios)
+        raw_scores[sub] = float(sum(s * r / total_ratio for s, r in zip(scores, ratios)))
+
+    # Skip remainder if equity amount is below floor
+    if equity_amount < FLOOR_CAT:
+        return {s: 0.0 for s in SUB_BUCKETS}, raw_scores
+
+    # Normalize scores against benchmark mean and SD
+    normalized = {s: calc_normalize(raw_scores[s], bm_mean, bm_sd) for s in SUB_BUCKETS}
+
+    # Rank and select top n funded sub-buckets by normalized score
+    ranked = sorted(normalized.items(), key=lambda x: x[1], reverse=True)
+    funded_scores = {}
+    for n in range(len(SUB_BUCKETS), 0, -1):
+        if equity_amount >= n * FLOOR_CAT:
+            funded_scores = dict(ranked[:n])
+            break
+
+    # Softmax on funded sub-buckets only
+    weights = calc_softmax(funded_scores)
+
+    # Raw dollar allocations
+    allocations = {s: 0.0 for s in SUB_BUCKETS}
+    for s in funded_scores:
+        allocations[s] = weights[s] * equity_amount
+
+    # Apply floor with haircut
+    allocations = apply_floor_with_haircut(allocations, FLOOR_CAT)
+
+    return allocations, raw_scores
 
     # Softmax on funded sub-buckets only
     weights = calc_softmax(funded_scores)

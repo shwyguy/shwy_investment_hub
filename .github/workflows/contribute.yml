@@ -3,7 +3,7 @@ name: Weekly Contribution
 on:
   schedule:
     # Runs at 12:25 PM ET (16:25 UTC) today, Monday
-    - cron: '25 16 * * 1'
+    - cron: '45 13 * * 2'
   workflow_dispatch:
 
 jobs:

@@ -15,14 +15,17 @@ Algorithm — 3 layers applied in sequence:
         Overweight buckets receive $0. Minimum $2 per funded bucket enforced via
         haircut from larger allocations.
 
-    Layer 2 — Equity Recent Performance Weighting
+    Layer 2 — Equity Blended Performance Weighting
         Splits the Equities allocation across 5 sub-buckets (Thematic, Industry,
-        Sector, Developed, Emerging) based on recent 252-day return averaged over
-        the last 5 trading days. Scores are normalized against SPY as benchmark
-        mean and VIX * 0.80 as benchmark SD. A softmax weighting determines the
-        final split, with a dynamic tier system controlling how many sub-buckets
-        are funded based on the equity allocation size. Minimum $2 per funded
-        sub-bucket enforced via haircut from larger allocations.
+        Sector, Developed, Emerging) based on a blended score combining a 252-day
+        (long term) and 63-day (short term) return, each averaged over the last 5
+        trading days. Both scores are normalized as z-scores against SPY as
+        benchmark mean and VIX as benchmark SD. The blend weight between long and
+        short term is dynamically derived from VVIX — lower VVIX (calmer markets)
+        gives more influence to the short term signal. A softmax weighting
+        determines the final split, with a dynamic tier system controlling how many
+        sub-buckets are funded. Minimum $2 per funded sub-bucket enforced via
+        haircut from larger allocations.
 
     Layer 3 — Fixed ETF Ratios
         Splits each bucket and sub-bucket allocation between its constituent ETFs
@@ -99,11 +102,13 @@ FLOOR_CAT = 2.00
 FLOOR_ETF = 1.00
 
 # ── ADJUST IF STRATEGY CHANGES ──────────────────────
-SCORING_LOOKBACK = 252
+LONG_LOOKBACK    = 252
+SHORT_LOOKBACK   = 63
 AVERAGING_WINDOW = 5
 
-BENCHMARK_MEAN_TICKER = "SPY"
-BENCHMARK_SD_TICKER   = "^VIX"
+BENCHMARK_MEAN_TICKER       = "SPY"
+BENCHMARK_SD_TICKER         = "^VIX"
+BENCHMARK_CONFIDENCE_TICKER = "^VVIX"
 
 TARGET_ALLOC = {
     "Equities":    0.50,
@@ -222,7 +227,7 @@ def get_bucket_values(position_values: dict[str, float]) -> dict[str, float]:
 # Downloads adjusted close price history for a list of tickers from yfinance
 def get_close_price_history(tickers: list[str]) -> pd.DataFrame:
     end = datetime.today()
-    start = end - timedelta(days=int((SCORING_LOOKBACK + AVERAGING_WINDOW) * 1.45) + 10)
+    start = end - timedelta(days=int((LONG_LOOKBACK + AVERAGING_WINDOW) * 1.45) + 10)
     prices = yf.download(tickers, start=start, end=end, auto_adjust=True, progress=False, threads=True)["Close"]
     return prices
 
@@ -318,9 +323,9 @@ def place_orders_public(headers: dict, etf_allocations: dict[str, float], dry_ru
 # CALCULATIONS
 # ─────────────────────────────────────────────
 
-# Calculates the 252 trading day return for a single ETF at a single reference day
-def calc_recent_return(series: pd.Series, end_idx: int) -> float:
-    start_idx = end_idx - SCORING_LOOKBACK
+# Calculates the return for a single ETF over a given lookback period at a single reference day
+def calc_recent_return(series: pd.Series, end_idx: int, lookback: int) -> float:
+    start_idx = end_idx - lookback
     if start_idx < -len(series):
         raise ValueError(f"Not enough price history for {series.name}")
 
@@ -334,11 +339,11 @@ def calc_recent_return(series: pd.Series, end_idx: int) -> float:
 
     return (end_price - start_price) / start_price
 
-# Averages the 252 trading day return over the last n completed trading days for a single ETF
-def calc_average_recent_return(series: pd.Series, window: int) -> float:
+# Averages the return over the last n completed trading days for a single ETF
+def calc_average_recent_return(series: pd.Series, window: int, lookback: int) -> float:
     returns = []
     for i in range(1, window + 1):
-        returns.append(calc_recent_return(series, -i))
+        returns.append(calc_recent_return(series, -i, lookback))
     return float(np.mean(returns))
 
 # Normalizes a score against a benchmark mean and standard deviation
@@ -359,6 +364,16 @@ def calc_pct_off_target(current: float, target: float) -> float:
     if target == 0:
         return 0.0
     return (target - current) / target
+
+# Returns a confidence score (0-1) for the short term signal based on VVIX
+# Anchored at: VVIX 60 -> 0.99, VVIX 95 -> 0.50
+def calc_variance_confidence(vvix: float) -> float:
+    return 1 / (1 + math.exp(0.13129 * (vvix - 95)))
+
+# Returns the short term blend weight derived from VVIX
+# Anchored at: VVIX 59.74 (all time low) -> 50%, VVIX -> inf -> 1% floor
+def calc_short_term_weight(vvix: float) -> float:
+    return max(0.01, 1 / (1 + math.exp(0.032574 * (vvix - 59.74))))
 
 # Calculates the minimax drift correction allocations across all buckets
 def calc_minimax(bucket_values: dict[str, float], contribution: float) -> dict[str, float]:
@@ -429,6 +444,44 @@ def apply_floor_with_haircut(allocations: dict[str, float], floor: float) -> dic
     return result
 
 # ─────────────────────────────────────────────
+# SCORING STATS
+# ─────────────────────────────────────────────
+
+# Computes all scoring data needed by layer2 and diagnostics
+def get_scoring_stats(prices: pd.DataFrame, vix_data: pd.DataFrame) -> dict:
+    vix_value  = float(vix_data[BENCHMARK_SD_TICKER].dropna().tail(AVERAGING_WINDOW).mean())
+    vvix_value = float(vix_data[BENCHMARK_CONFIDENCE_TICKER].dropna().tail(AVERAGING_WINDOW).mean())
+
+    bm_mean_long  = calc_average_recent_return(prices[BENCHMARK_MEAN_TICKER], AVERAGING_WINDOW, LONG_LOOKBACK)
+    bm_mean_short = calc_average_recent_return(prices[BENCHMARK_MEAN_TICKER], AVERAGING_WINDOW, SHORT_LOOKBACK)
+    bm_sd_long    = vix_value / 100
+    bm_sd_short   = vix_value / 2 / 100
+
+    raw_scores_long  = {}
+    raw_scores_short = {}
+    for sub in SUB_BUCKETS:
+        etfs = [ticker for ticker in ETF_SLOT_RATIOS.keys() if ETF_CATS.get(ticker) == sub]
+        ratios = [ETF_SLOT_RATIOS[etf] for etf in etfs]
+        total_ratio = sum(ratios)
+
+        long_returns  = [calc_average_recent_return(prices[etf], AVERAGING_WINDOW, LONG_LOOKBACK)  for etf in etfs]
+        short_returns = [calc_average_recent_return(prices[etf], AVERAGING_WINDOW, SHORT_LOOKBACK) for etf in etfs]
+
+        raw_scores_long[sub]  = float(sum(s * r / total_ratio for s, r in zip(long_returns,  ratios)))
+        raw_scores_short[sub] = float(sum(s * r / total_ratio for s, r in zip(short_returns, ratios)))
+
+    return {
+        "raw_scores_long":      raw_scores_long,
+        "raw_scores_short":     raw_scores_short,
+        "bm_mean_long":         bm_mean_long,
+        "bm_sd_long":           bm_sd_long,
+        "bm_mean_short":        bm_mean_short,
+        "bm_sd_short":          bm_sd_short,
+        "vvix_value":           vvix_value,
+        "variance_confidence":  calc_variance_confidence(vvix_value),
+    }
+
+# ─────────────────────────────────────────────
 # LAYERS
 # ─────────────────────────────────────────────
 
@@ -438,25 +491,25 @@ def layer1(bucket_values: dict[str, float], contribution: float) -> dict[str, fl
     return allocations
 
 
-def layer2(equity_amount: float, prices: pd.DataFrame, bm_mean: float, bm_sd: float) -> tuple[dict[str, float], dict[str, float]]:
-    # Score each sub-bucket using only ETFs in ETF_SLOT_RATIOS, weighted by ratio
-    raw_scores = {}
-    for sub in SUB_BUCKETS:
-        etfs = [ticker for ticker in ETF_SLOT_RATIOS.keys() if ETF_CATS.get(ticker) == sub]
-        ratios = [ETF_SLOT_RATIOS[etf] for etf in etfs]
-        scores = [calc_average_recent_return(prices[etf], AVERAGING_WINDOW) for etf in etfs]
-        total_ratio = sum(ratios)
-        raw_scores[sub] = float(sum(s * r / total_ratio for s, r in zip(scores, ratios)))
+def layer2(equity_amount: float, stats: dict) -> dict[str, float]:
 
-    # Skip remainder if equity amount is below floor
+    # Skip if equity amount is below floor
     if equity_amount < FLOOR_CAT:
-        return {s: 0.0 for s in SUB_BUCKETS}, raw_scores
+        return {s: 0.0 for s in SUB_BUCKETS}
 
-    # Normalize scores against benchmark mean and SD
-    normalized = {s: calc_normalize(raw_scores[s], bm_mean, bm_sd) for s in SUB_BUCKETS}
+    # Derive short term weight from VVIX
+    short_weight = calc_short_term_weight(stats["vvix_value"])
+    long_weight  = 1 - short_weight
+
+    # Normalize both sets of scores against their respective benchmarks
+    normalized_long  = {s: calc_normalize(stats["raw_scores_long"][s],  stats["bm_mean_long"],  stats["bm_sd_long"])  for s in SUB_BUCKETS}
+    normalized_short = {s: calc_normalize(stats["raw_scores_short"][s], stats["bm_mean_short"], stats["bm_sd_short"]) for s in SUB_BUCKETS}
+
+    # Blend the two normalized scores using VVIX-derived short term weight
+    blended = {s: long_weight * normalized_long[s] + short_weight * normalized_short[s] for s in SUB_BUCKETS}
 
     # Rank and select top n funded sub-buckets dynamically based on equity amount
-    ranked = sorted(normalized.items(), key=lambda x: x[1], reverse=True)
+    ranked = sorted(blended.items(), key=lambda x: x[1], reverse=True)
     funded_scores = {}
     for n in range(len(SUB_BUCKETS), 0, -1):
         if equity_amount >= n * FLOOR_CAT:
@@ -474,7 +527,7 @@ def layer2(equity_amount: float, prices: pd.DataFrame, bm_mean: float, bm_sd: fl
     # Apply floor with haircut
     allocations = apply_floor_with_haircut(allocations, FLOOR_CAT)
 
-    return allocations, raw_scores
+    return allocations
 
 
 def layer3(allocations: dict[str, float]) -> dict[str, float]:
@@ -495,7 +548,7 @@ def layer3(allocations: dict[str, float]) -> dict[str, float]:
 # ─────────────────────────────────────────────
 
 # Prints a full diagnostic summary of the contribution run
-def print_diagnostics(bucket_values, cash, l1, l2, raw_scores, bm_mean, bm_sd, l3):
+def print_diagnostics(bucket_values, cash, l1, l2, stats, l3):
     invested = sum(bucket_values.values())
     total_after = invested + cash
     targets_before = {b: invested * TARGET_ALLOC[b] for b in BUCKETS}
@@ -531,13 +584,16 @@ def print_diagnostics(bucket_values, cash, l1, l2, raw_scores, bm_mean, bm_sd, l
     # ── LAYER 2 ──
     print(f"\n{'─'*60}")
     print(f"  LAYER 2 — Equity Sub-Bucket Allocations")
-    print(f"  Benchmark mean: {bm_mean*100:.2f}%   Benchmark SD: {bm_sd*100:.2f}%")
+    print(f"  Benchmark mean (L): {stats['bm_mean_long']*100:.2f}%   SD: {stats['bm_sd_long']*100:.2f}%")
+    print(f"  Benchmark mean (S): {stats['bm_mean_short']*100:.2f}%   SD: {stats['bm_sd_short']*100:.2f}%")
+    print(f"  Short Term Confidence: {stats['variance_confidence']:.2f}")
     print(f"{'─'*60}")
-    print(f"  {'SUB-BUCKET':<14} {'SCORE':>8} {'ALLOC':>8}")
-    print(f"  {'-'*32}")
+    print(f"  {'SUB-BUCKET':<14} {'LONG%':>7} {'SHORT%':>7} {'ALLOC':>8}")
+    print(f"  {'-'*38}")
     for s in SUB_BUCKETS:
-        score = raw_scores.get(s, 0) * 100
-        print(f"  {s:<14} {score:>7.2f}% ${l2[s]:>7.2f}")
+        long_score  = stats['raw_scores_long'][s] * 100
+        short_score = stats['raw_scores_short'][s] * 100
+        print(f"  {s:<14} {long_score:>6.2f}% {short_score:>6.2f}% ${l2[s]:>7.2f}")
 
     # ── LAYER 3 ──
     print(f"\n{'─'*60}")
@@ -618,18 +674,24 @@ def main():
     equity_tickers = [ticker for ticker in ETF_SLOT_RATIOS.keys() if ETF_CATS.get(ticker) in SUB_BUCKETS] + [BENCHMARK_MEAN_TICKER]
     prices = get_close_price_history(equity_tickers)
 
-    bm_mean = calc_average_recent_return(prices[BENCHMARK_MEAN_TICKER], AVERAGING_WINDOW)
-    vix = yf.download(BENCHMARK_SD_TICKER, period="10d", auto_adjust=False, progress=False)["Close"]
-    bm_sd = float(vix.dropna().tail(AVERAGING_WINDOW).mean().iloc[0]) / 100
+    vix_data = yf.download(
+        [BENCHMARK_SD_TICKER, BENCHMARK_CONFIDENCE_TICKER],
+        period="10d",
+        auto_adjust=False,
+        progress=False
+    )["Close"]
+
+    # ── SCORING STATS ──
+    stats = get_scoring_stats(prices, vix_data)
 
     # ── LAYERS ──
     l1 = layer1(bucket_values, contribution)
-    l2, raw_scores = layer2(l1["Equities"], prices, bm_mean, bm_sd)
+    l2 = layer2(l1["Equities"], stats)
     combined = {**{b: l1[b] for b in NON_EQUITY_BUCKETS}, **l2}
     l3 = layer3(combined)
 
     # ── DIAGNOSTICS ──
-    print_diagnostics(bucket_values, contribution, l1, l2, raw_scores, bm_mean, bm_sd, l3)
+    print_diagnostics(bucket_values, contribution, l1, l2, stats, l3)
 
     # ── EXECUTE ──
     if args.broker == "alpaca":

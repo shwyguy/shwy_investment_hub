@@ -530,6 +530,33 @@ def layer2(equity_amount: float, stats: dict) -> dict[str, float]:
     return allocations
 
 
+def layer2_simple(equity_amount: float, stats: dict) -> dict[str, float]:
+
+    # Skip if equity amount is below floor
+    if equity_amount < FLOOR_CAT:
+        return {s: 0.0 for s in SUB_BUCKETS}
+
+    # Rank by short term if confidence is high, long term if low
+    rank_scores = stats["raw_scores_short"] if stats["variance_confidence"] >= 0.50 else stats["raw_scores_long"]
+    ranked = sorted(rank_scores.items(), key=lambda x: x[1], reverse=True)
+
+    # Fund as many sub-buckets as the equity amount supports
+    funded = {}
+    for n in range(len(SUB_BUCKETS), 0, -1):
+        if equity_amount >= n * FLOOR_CAT:
+            funded = dict(ranked[:n])
+            break
+
+    # Even split across funded sub-buckets
+    allocations = {s: 0.0 for s in SUB_BUCKETS}
+    even_amount = equity_amount / len(funded)
+    for s in funded:
+        allocations[s] = even_amount
+
+    allocations = apply_floor_with_haircut(allocations, FLOOR_CAT)
+    return allocations
+
+
 def layer3(allocations: dict[str, float]) -> dict[str, float]:
     etf_allocations = {}
 
@@ -635,6 +662,7 @@ def main():
     # ── ARGUMENTS ──
     parser = argparse.ArgumentParser(description="Taxable brokerage weekly contribution script")
     parser.add_argument("--broker", type=str, default="public", choices=["public", "alpaca"], help="Broker to use (default: public)")
+    parser.add_argument("--simple", action="store_true", help="Split equity evenly across sub-buckets instead of using blended scoring")
     parser.add_argument("--dry-run", action="store_true", help="Simulate orders without placing them")
     parser.add_argument("--amount", type=float, default=None, help="Override contribution amount in USD")
     args, _ = parser.parse_known_args()
@@ -686,7 +714,7 @@ def main():
 
     # ── LAYERS ──
     l1 = layer1(bucket_values, contribution)
-    l2 = layer2(l1["Equities"], stats)
+    l2 = layer2_simple(l1["Equities"], stats) if args.simple else layer2(l1["Equities"], stats)
     combined = {**{b: l1[b] for b in NON_EQUITY_BUCKETS}, **l2}
     l3 = layer3(combined)
 
@@ -698,6 +726,11 @@ def main():
         place_orders_alpaca(client, l3, dry_run=args.dry_run)
     else:
         place_orders_public(headers, l3, dry_run=args.dry_run)
+
+
+if __name__ == "__main__":
+    main()
+
 
 
 if __name__ == "__main__":

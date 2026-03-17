@@ -1,0 +1,22 @@
+name: Keep Alive
+
+on:
+  schedule:
+    - cron: '0 12 1 * *'  # First day of every month at noon UTC
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Keep alive commit
+        run: |
+          git config user.email "keepalive@github.com"
+          git config user.name "Keep Alive Bot"
+          echo "Last keep-alive: $(date)" > .keepalive
+          git add .keepalive
+          git commit -m "chore: keep-alive $(date +'%Y-%m')"
+          git push
+          

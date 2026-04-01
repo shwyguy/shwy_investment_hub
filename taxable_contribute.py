@@ -50,6 +50,7 @@ import os
 import subprocess
 import sys
 import math
+import tempfile
 import uuid
 from datetime import datetime, timedelta
 
@@ -699,6 +700,7 @@ def main():
         sys.exit(0)
 
     # ── MARKET DATA ──
+    yf.set_tz_cache_location(tempfile.mkdtemp())
     equity_tickers = [ticker for ticker in ETF_SLOT_RATIOS.keys() if ETF_CATS.get(ticker) in SUB_BUCKETS] + [BENCHMARK_MEAN_TICKER]
     prices = get_close_price_history(equity_tickers)
 

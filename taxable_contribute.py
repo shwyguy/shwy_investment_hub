@@ -139,6 +139,7 @@ ETF_CATS = {
     # Equities — Developed
     "EWJ":  "Developed",
     "EWG":  "Developed",
+    "EWY":  "Developed",    #Technically this should be emerging based on Ishares msci indexes but others consider it Developed so I am bending.
     # Equities — Emerging
     "MCHI": "Emerging",
     "INDA": "Emerging",
@@ -146,11 +147,14 @@ ETF_CATS = {
     "ITA":  "Industry",
     "IGV":  "Industry",
     "IHE":  "Industry",
+    "IBB":  "Industry",
     # Equities — Sector
     "IYK":  "Sector",
     "IYH":  "Sector",
     "IYW":  "Sector",
     "IYE":  "Sector",
+    "IYF":  "Sector",
+    "IYC":  "Sector",
     # Equities — Thematic
     "ARTY": "Thematic",
     "ICLN": "Thematic",
@@ -175,16 +179,16 @@ ETF_SLOT_RATIOS = {
     "COMT": 1,
     # Equities — Developed
     "EWJ":  1,
-    "EWG":  1,
+    "EWY":  1,
     # Equities — Emerging
     "MCHI": 1,
     "INDA": 1,
     # Equities — Industry
-    "ITA":  1,
+    "IBB":  1,
     "IGV":  1,
     # Equities — Sector
-    "IYK":  1,
-    "IYH":  1,
+    "IYF":  1,
+    "IYC":  1,
     # Equities — Thematic
     "ARTY": 1,
     "ICLN": 1,

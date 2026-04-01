@@ -188,7 +188,7 @@ ETF_SLOT_RATIOS = {
     "IGV":  1,
     # Equities — Sector
     "IYF":  1,
-    "IYC":  1,
+    "IYK":  1,
     # Equities — Thematic
     "ARTY": 1,
     "ICLN": 1,

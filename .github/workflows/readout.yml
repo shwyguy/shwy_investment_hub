@@ -1,0 +1,29 @@
+name: CMA Monthly Readout
+
+on:
+  schedule:
+    # Runs at 11:30 AM EST / 12:30 PM EDT (16:30 UTC) first Wednesday of every month
+    - cron: '30 16 1-7 * 3'
+  workflow_dispatch:
+
+jobs:
+  readout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scheduler Check
+        run: echo "Automated trigger successful at $(date)"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests yfinance
+
+      - name: Run CMA readout
+        run: python cma_readout.py

@@ -110,12 +110,12 @@ def main():
     print("   Target SPAXX pool: " + str(target_pct) + "% (acceptable: " + str(floor_pct) + "%-" + str(ceiling_pct) + "%)")
     print("   Maintain split: " + get_maintain_split(target_pct))
 
-    print("\nVOO Price: $" + str(round(price, 2)))
-    print("   50-day MA:  $" + str(round(ma50, 2)))
-    print("   200-day MA: $" + str(round(ma200, 2)))
-    print("   MA Spread:  " + str(round(ma_spread, 2)) + "% -> " + ma_signal + " (score " + str(ma_score) + ")")
+    print("\nVOO Price: $" + "{:.2f}".format(price))
+    print("   50-day MA:  $" + "{:.2f}".format(ma50))
+    print("   200-day MA: $" + "{:.2f}".format(ma200))
+    print("   MA Spread:  " + "{:+.2f}".format(ma_spread) + "% -> " + ma_signal + " (score " + str(ma_score) + ")")
 
-    print("\n52-Week High: $" + str(round(week52_high, 2)) + " | Low: $" + str(round(week52_low, 2)))
+    print("\n52-Week High: $" + "{:.2f}".format(week52_high) + " | Low: $" + "{:.2f}".format(week52_low))
     print("   " + str(round(pct_below_high, 1)) + "% below 52w high (>10% = buy flag)")
     print("   " + str(round(pct_above_low, 1)) + "% above 52w low  (>25% = sell flag)")
     print("   Flag: " + flag_signal + " (score " + str(flag_score) + ")")
@@ -147,9 +147,9 @@ def main():
     subject = "CMA Readout - " + datetime.now().strftime("%B %Y")
     body = (
         "CAPE: " + str(round(cape, 2)) + " (" + zone_label + ")\n"
-        "VOO: $" + str(round(price, 2)) + "\n"
-        "MA: 50d $" + str(round(ma50, 2)) + " / 200d $" + str(round(ma200, 2)) + " / Spread " + str(round(ma_spread, 2)) + "% (" + ma_signal + ")\n"
-        "52w High: $" + str(round(week52_high, 2)) + " (-" + str(round(pct_below_high, 1)) + "%) / Low: $" + str(round(week52_low, 2)) + " (+" + str(round(pct_above_low, 1)) + "%) (" + flag_signal + ")\n"
+        "VOO: $" + "{:.2f}".format(price) + "\n"
+        "MA: 50d $" + "{:.2f}".format(ma50) + " / 200d $" + "{:.2f}".format(ma200) + " / Spread " + "{:+.2f}".format(ma_spread) + "% (" + ma_signal + ")\n"
+        "52w High: $" + "{:.2f}".format(week52_high) + " (-" + str(round(pct_below_high, 1)) + "%) / Low: $" + "{:.2f}".format(week52_low) + " (+" + str(round(pct_above_low, 1)) + "%) (" + flag_signal + ")\n"
         "----------------------\n"
         "U: " + actions["Underfunded"] + "\n"
         "F: " + actions["Funded"] + "\n"

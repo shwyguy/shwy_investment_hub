@@ -83,11 +83,11 @@ def get_maintain_split(target_pct):
     return str(voo_pct) + "% VOO / " + str(target_pct) + "% SPAXX"
 
 def send_text(subject, body):
-    gmail_user     = os.environ["GMAIL_USERNAME"]
-    gmail_passkey  = os.environ["GMAIL_APP_PASSKEY"]
-    phone_number   = os.environ["PHONE_NUMBER"]
-    to             = phone_number + "@vzwpix.com"
-    message        = "Subject: " + subject + "\n\n" + body
+    gmail_user    = os.environ["GMAIL_USERNAME"]
+    gmail_passkey = os.environ["GMAIL_APP_PASSKEY"]
+    phone_number  = os.environ["PHONE_NUMBER"]
+    to            = phone_number + "@vzwpix.com"
+    message       = "Subject: " + subject + "\n\n" + body
     smtp = smtplib.SMTP("smtp.gmail.com", 587)
     smtp.starttls()
     smtp.login(gmail_user, gmail_passkey)
@@ -138,10 +138,10 @@ def main():
         print("\n  If " + funding_desc + ":")
         print("  -> Score " + str(score) + " (" + funding_label + "): " + action)
 
-    scenario_key = zone_code + ma_code + flag_code
+    scenario_code = zone_code + ma_code + flag_code
 
     print("\n" + "=" * 60)
-    print("  CALCULATOR CODE: " + scenario_key)
+    print("  SCENARIO CODE: " + scenario_code)
     print("=" * 60)
 
     subject = "CMA Readout - " + datetime.now().strftime("%B %Y")
@@ -155,7 +155,7 @@ def main():
         "F: " + actions["Funded"] + "\n"
         "O: " + actions["Overfunded"] + "\n"
         "----------------------\n"
-        "Calculator Code: " + scenario_key
+        "Scenario Code: " + scenario_code
     )
 
     send_text(subject, body)

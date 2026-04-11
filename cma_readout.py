@@ -1,6 +1,8 @@
 import requests
 import re
 import yfinance as yf
+import smtplib
+import os
 from datetime import datetime
 
 def get_cape():
@@ -60,25 +62,37 @@ def get_flag(price, week52_high, week52_low):
 
 def get_action(score, flag_signal):
     actions = {
-        -4: "100% SPAXX contributions + sell 5% of active portfolio (VOO->SPAXX)",
-        -3: "50/50 contributions + sell 5% of active portfolio (VOO->SPAXX)",
-        -2: "100% SPAXX contributions + do nothing to balance",
-        -1: "50/50 contributions + do nothing to balance",
-         0: "Maintain split contributions + do nothing to balance",
-         1: "100% VOO contributions + do nothing to balance",
-         2: "Maintain split contributions + deploy 5% of active portfolio (SPAXX->VOO)",
-         3: "100% VOO contributions + deploy 5% of active portfolio (SPAXX->VOO)",
-         4: "100% VOO contributions + deploy 10% of active portfolio (SPAXX->VOO)",
+        -4: "100% SPAXX + sell 5%",
+        -3: "50/50 + sell 5%",
+        -2: "100% SPAXX + do nothing",
+        -1: "50/50 + do nothing",
+         0: "Maintain split + do nothing",
+         1: "100% VOO + do nothing",
+         2: "Maintain split + deploy 5%",
+         3: "100% VOO + deploy 5%",
+         4: "100% VOO + deploy 10%",
     }
     exceptions = {
-        (-2, "Sell"): "Maintain split contributions + sell 5% of active portfolio (VOO->SPAXX)",
-        ( 3, "Buy"):  "Maintain split contributions + deploy 10% of active portfolio (SPAXX->VOO)",
+        (-2, "Sell"): "Maintain split + sell 5%",
+        ( 3, "Buy"):  "Maintain split + deploy 10%",
     }
     return exceptions.get((score, flag_signal), actions.get(score, "Unknown score"))
 
 def get_maintain_split(target_pct):
     voo_pct = 100 - target_pct
     return str(voo_pct) + "% VOO / " + str(target_pct) + "% SPAXX"
+
+def send_text(subject, body):
+    gmail_user     = os.environ["GMAIL_USERNAME"]
+    gmail_passkey  = os.environ["GMAIL_APP_PASSKEY"]
+    phone_number   = os.environ["PHONE_NUMBER"]
+    to             = phone_number + "@vzwpix.com"
+    message        = "Subject: " + subject + "\n\n" + body
+    smtp = smtplib.SMTP("smtp.gmail.com", 587)
+    smtp.starttls()
+    smtp.login(gmail_user, gmail_passkey)
+    smtp.sendmail(gmail_user, to, message)
+    smtp.quit()
 
 def main():
     print("=" * 60)
@@ -111,6 +125,7 @@ def main():
     print("  (Active portfolio = VOO value + SPAXX - $50)")
     print("-" * 60)
 
+    actions = {}
     for funding_label, funding_score, funding_desc in [
         ("Underfunded", -2, "SPAXX pool < " + str(floor_pct) + "% of active portfolio"),
         ("Funded",       0, "SPAXX pool between " + str(floor_pct) + "% and " + str(ceiling_pct) + "%"),
@@ -119,14 +134,32 @@ def main():
         score = funding_score + ma_score + flag_score
         score = max(-4, min(4, score))
         action = get_action(score, flag_signal)
+        actions[funding_label] = action
         print("\n  If " + funding_desc + ":")
         print("  -> Score " + str(score) + " (" + funding_label + "): " + action)
 
     scenario_key = zone_code + ma_code + flag_code
+
     print("\n" + "=" * 60)
-    print("  CALCULATOR KEY: " + scenario_key)
-    print("  (Use this in the balance calculator to get exact actions)")
+    print("  CALCULATOR CODE: " + scenario_key)
     print("=" * 60)
+
+    subject = "CMA Readout - " + datetime.now().strftime("%B %Y")
+    body = (
+        "CAPE: " + str(round(cape, 2)) + " (" + zone_label + ")\n"
+        "VOO: $" + str(round(price, 2)) + "\n"
+        "MA: 50d $" + str(round(ma50, 2)) + " / 200d $" + str(round(ma200, 2)) + " / Spread " + str(round(ma_spread, 2)) + "% (" + ma_signal + ")\n"
+        "52w High: $" + str(round(week52_high, 2)) + " (-" + str(round(pct_below_high, 1)) + "%) / Low: $" + str(round(week52_low, 2)) + " (+" + str(round(pct_above_low, 1)) + "%) (" + flag_signal + ")\n"
+        "----------------------\n"
+        "U: " + actions["Underfunded"] + "\n"
+        "F: " + actions["Funded"] + "\n"
+        "O: " + actions["Overfunded"] + "\n"
+        "----------------------\n"
+        "Calculator Code: " + scenario_key
+    )
+
+    send_text(subject, body)
+    print("\nText sent successfully.")
 
 if __name__ == "__main__":
     main()

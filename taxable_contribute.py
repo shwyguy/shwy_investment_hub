@@ -47,6 +47,7 @@ import argparse
 import importlib
 import importlib.util
 import os
+import smtplib
 import subprocess
 import sys
 import math
@@ -139,7 +140,7 @@ ETF_CATS = {
     # Equities — Developed
     "EWJ":  "Developed",
     "EWG":  "Developed",
-    "EWY":  "Developed",    #Technically this should be emerging based on Ishares msci indexes but others consider it Developed so I am bending.
+    "EWY":  "Developed",    # Technically Emerging per MSCI but classified here as Developed
     # Equities — Emerging
     "MCHI": "Emerging",
     "INDA": "Emerging",
@@ -198,22 +199,19 @@ ETF_SLOT_RATIOS = {
 # SHARED HELPERS
 # ─────────────────────────────────────────────
 
-# Exits the script if the market is closed, including holidays and early closures
-def check_market_open():
+# Returns True if the market is currently open, False otherwise
+def is_market_open() -> bool:
     nyse = xcals.get_calendar("XNYS")
     et = pytz.timezone("America/New_York")
     now = datetime.now(et)
 
     if not nyse.is_session(now.date()):
-        print("Market is closed today (holiday or weekend). Use --dry-run to simulate. Exiting.")
-        sys.exit(0)
+        return False
 
     market_open  = nyse.session_open(now.date()).astimezone(et)
     market_close = nyse.session_close(now.date()).astimezone(et)
 
-    if not (market_open <= now <= market_close):
-        print("Market is currently closed. Use --dry-run to simulate. Exiting.")
-        sys.exit(0)
+    return market_open <= now <= market_close
 
 # Aggregates position values into the 6 asset buckets using ETF_CATS
 def get_bucket_values(position_values: dict[str, float]) -> dict[str, float]:
@@ -236,6 +234,19 @@ def get_close_price_history(tickers: list[str]) -> pd.DataFrame:
     prices = yf.download(tickers, start=start, end=end, auto_adjust=True, progress=False, threads=True)["Close"]
     return prices
 
+# Sends an SMS via Gmail SMTP to a carrier email-to-text gateway
+def send_text(subject: str, body: str):
+    gmail_user    = os.environ["GMAIL_USERNAME"]
+    gmail_passkey = os.environ["GMAIL_APP_PASSKEY"]
+    phone_number  = os.environ["PHONE_NUMBER"]
+    to            = phone_number + "@vzwpix.com"
+    message       = "Subject: " + subject + "\n\n" + body
+    smtp = smtplib.SMTP("smtp.gmail.com", 587)
+    smtp.starttls()
+    smtp.login(gmail_user, gmail_passkey)
+    smtp.sendmail(gmail_user, to, message)
+    smtp.quit()
+
 # ─────────────────────────────────────────────
 # ALPACA HELPERS
 # ─────────────────────────────────────────────
@@ -252,8 +263,9 @@ def get_alpaca_portfolio(client) -> tuple[float, dict[str, float]]:
     position_values = {p.symbol: float(p.market_value) for p in positions}
     return cash, position_values
 
-# Places fractional market orders via Alpaca
-def place_orders_alpaca(client, etf_allocations: dict[str, float], dry_run: bool):
+# Places fractional market orders via Alpaca, returns list of (etf, amount, success, message)
+def place_orders_alpaca(client, etf_allocations: dict[str, float], dry_run: bool) -> list[tuple]:
+    results = []
     for etf, amount in etf_allocations.items():
         notional = math.floor(amount * 100) / 100
         if notional < 1.00:
@@ -261,15 +273,22 @@ def place_orders_alpaca(client, etf_allocations: dict[str, float], dry_run: bool
             continue
         if dry_run:
             print(f"DRY RUN — would buy ${notional:.2f} of {etf}")
+            results.append((etf, notional, True, "dry run"))
         else:
-            order = MarketOrderRequest(
-                symbol=etf,
-                notional=notional,
-                side=OrderSide.BUY,
-                time_in_force=TimeInForce.DAY,
-            )
-            client.submit_order(order)
-            print(f"Ordered ${notional:.2f} of {etf}")
+            try:
+                order = MarketOrderRequest(
+                    symbol=etf,
+                    notional=notional,
+                    side=OrderSide.BUY,
+                    time_in_force=TimeInForce.DAY,
+                )
+                client.submit_order(order)
+                print(f"Ordered ${notional:.2f} of {etf}")
+                results.append((etf, notional, True, "ok"))
+            except Exception as e:
+                print(f"ERROR ordering {etf}: {e}")
+                results.append((etf, notional, False, str(e)))
+    return results
 
 # ─────────────────────────────────────────────
 # PUBLIC HELPERS
@@ -299,8 +318,9 @@ def get_public_portfolio(headers: dict) -> tuple[float, dict[str, float]]:
     }
     return cash, position_values
 
-# Places fractional market orders via Public
-def place_orders_public(headers: dict, etf_allocations: dict[str, float], dry_run: bool):
+# Places fractional market orders via Public, returns list of (etf, amount, success, message)
+def place_orders_public(headers: dict, etf_allocations: dict[str, float], dry_run: bool) -> list[tuple]:
+    results = []
     for etf, amount in etf_allocations.items():
         notional = math.floor(amount * 100) / 100
         if notional < 1.00:
@@ -308,21 +328,29 @@ def place_orders_public(headers: dict, etf_allocations: dict[str, float], dry_ru
             continue
         if dry_run:
             print(f"DRY RUN — would buy ${notional:.2f} of {etf}")
+            results.append((etf, notional, True, "dry run"))
         else:
-            order = {
-                "orderId": str(uuid.uuid4()),
-                "instrument": {"symbol": etf, "type": "EQUITY"},
-                "orderSide": "BUY",
-                "orderType": "MARKET",
-                "expiration": {"timeInForce": "DAY"},
-                "amount": str(notional)
-            }
-            response = req.post(
-                f"https://api.public.com/userapigateway/trading/{PUBLIC_ACCOUNT_ID}/order",
-                headers=headers,
-                json=order
-            )
-            print(f"Ordered ${notional:.2f} of {etf} — {response.json()}")
+            try:
+                order = {
+                    "orderId": str(uuid.uuid4()),
+                    "instrument": {"symbol": etf, "type": "EQUITY"},
+                    "orderSide": "BUY",
+                    "orderType": "MARKET",
+                    "expiration": {"timeInForce": "DAY"},
+                    "amount": str(notional)
+                }
+                response = req.post(
+                    f"https://api.public.com/userapigateway/trading/{PUBLIC_ACCOUNT_ID}/order",
+                    headers=headers,
+                    json=order
+                )
+                response.raise_for_status()
+                print(f"Ordered ${notional:.2f} of {etf}")
+                results.append((etf, notional, True, "ok"))
+            except Exception as e:
+                print(f"ERROR ordering {etf}: {e}")
+                results.append((etf, notional, False, str(e)))
+    return results
 
 # ─────────────────────────────────────────────
 # CALCULATIONS
@@ -576,7 +604,7 @@ def layer3(allocations: dict[str, float]) -> dict[str, float]:
     return etf_allocations
 
 # ─────────────────────────────────────────────
-# DIAGNOSTICS
+# DIAGNOSTICS AND NOTIFICATIONS
 # ─────────────────────────────────────────────
 
 # Prints a full diagnostic summary of the contribution run
@@ -659,6 +687,112 @@ def print_diagnostics(bucket_values, cash, l1, l2, stats, l3):
 
     print(f"\n{'='*60}\n")
 
+
+# Builds the subject and body for a successful contribution notification
+def build_notification(bucket_values, contribution, l1, l2, stats, l3, broker, dry_run, order_results) -> tuple[str, str]:
+    invested = sum(bucket_values.values())
+    new_total = invested + contribution
+    short_weight = calc_short_term_weight(stats["vvix_value"])
+    result_map = {etf: success for etf, _, success, _ in order_results}
+
+    # Bucket state
+    bucket_section = "── Buckets (before) ──\n" + "\n".join(
+        f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
+        for b in BUCKETS
+    )
+
+    # Layer 1
+    l1_section = "── Layer 1 ──\n" + "\n".join(
+        f"{b}: ${l1[b]:.2f}" for b in BUCKETS
+    )
+
+    # Layer 2
+    sub_lines = "\n".join(
+        f"{s}: ${l2[s]:.2f}  ({stats['raw_scores_long'][s]*100:+.1f}%, {stats['raw_scores_short'][s]*100:+.1f}%)"
+        for s in SUB_BUCKETS
+    )
+    l2_section = (
+        f"── Layer 2 ──\n"
+        f"SPY 1yr: {stats['bm_mean_long']*100:+.1f}%  VIX: {stats['bm_sd_long']*100:.1f}\n"
+        f"SPY 3mo: {stats['bm_mean_short']*100:+.1f}%  VVIX: {stats['vvix_value']:.1f}\n"
+        f"Short weight: {short_weight*100:.0f}%\n"
+        f"\n{sub_lines}"
+    )
+
+    # Orders
+    def fmt_etf(t):
+        label = f"{t}: ${l3[t]:.2f}"
+        if result_map.get(t) is False:
+            label += " (FAILED!!!!!)"
+        return label
+
+    order_lines = ["── Orders ──", "Equities:"]
+    for s in SUB_BUCKETS:
+        etfs = [t for t in l3 if ETF_CATS.get(t) == s]
+        order_lines.append(f"  {s}:")
+        order_lines.append("    " + "  ".join(fmt_etf(t) for t in etfs))
+    for b in NON_EQUITY_BUCKETS:
+        etfs = [t for t in l3 if ETF_CATS.get(t) == b]
+        order_lines.append(f"{b}:")
+        order_lines.append("  " + "  ".join(fmt_etf(t) for t in etfs))
+    orders_section = "\n".join(order_lines)
+
+    # After
+    after_lines = [f"── After ──\nBalance: ${new_total:,.2f}"]
+    for b in BUCKETS:
+        new_val = bucket_values[b]
+        for t, a in l3.items():
+            cat = ETF_CATS.get(t)
+            if (b == "Equities" and cat in SUB_BUCKETS) or cat == b:
+                new_val += a
+        new_pct = new_val / new_total * 100
+        tgt_pct = TARGET_ALLOC[b] * 100
+        check = " ✓" if abs(new_pct - tgt_pct) < 2 else ""
+        after_lines.append(f"{b}: {new_pct:.1f}% → {tgt_pct:.0f}%{check}")
+    after_section = "\n".join(after_lines)
+
+    subject = f"{'DRY RUN — ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}]"
+    body = "\n\n".join([bucket_section, l1_section, l2_section, orders_section, after_section])
+    return subject, body
+
+
+# Builds the subject and body for a market closed notification
+def build_market_closed_notification(bucket_values, cash, broker) -> tuple[str, str]:
+    invested = sum(bucket_values.values())
+    total = invested + cash
+
+    bucket_lines = "\n".join(
+        f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
+        for b in BUCKETS
+    )
+
+    subject = f"Market closed [{broker}]"
+    body = (
+        f"Market is closed — no orders placed.\n"
+        f"Cash available: ${cash:.2f}\n"
+        f"Use --dry-run to simulate calculations.\n\n"
+        f"── Current Balance: ${total:,.2f} ──\n{bucket_lines}"
+    )
+    return subject, body
+
+
+# Builds the subject and body for an insufficient funds notification
+def build_insufficient_funds_notification(bucket_values, cash, broker, dry_run) -> tuple[str, str]:
+    invested = sum(bucket_values.values())
+    total = invested + cash
+
+    bucket_lines = "\n".join(
+        f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
+        for b in BUCKETS
+    )
+
+    subject = f"{'DRY RUN — ' if dry_run else ''}Insufficient funds [{broker}]"
+    body = (
+        f"Cash available: ${cash:.2f} — ${MIN_CONTRIBUTION:.2f} minimum required to deploy.\n\n"
+        f"── Current Balance: ${total:,.2f} ──\n{bucket_lines}"
+    )
+    return subject, body
+
 # ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
@@ -673,9 +807,6 @@ def main():
     args, _ = parser.parse_known_args()
 
     # ── INITIALIZE ──
-    if not args.dry_run:
-        check_market_open()
-
     if args.broker == "alpaca":
         client = get_alpaca_client()
         cash, position_values = get_alpaca_portfolio(client)
@@ -689,6 +820,12 @@ def main():
 
     bucket_values = get_bucket_values(position_values)
 
+    if not args.dry_run and not is_market_open():
+        print("Market is closed. Use --dry-run to simulate. Exiting.")
+        subject, body = build_market_closed_notification(bucket_values, cash, args.broker)
+        send_text(subject, body)
+        sys.exit(0)
+
     # ── CONTRIBUTION AMOUNT ──
     if args.amount is not None:
         if args.amount > cash:
@@ -700,7 +837,9 @@ def main():
         contribution = cash
 
     if contribution < MIN_CONTRIBUTION:
-        print(f"Insufficient cash ${contribution:.2f} — minimum is ${MIN_CONTRIBUTION:.2f}. Exiting.")
+        print(f"Insufficient funds ${contribution:.2f} — ${MIN_CONTRIBUTION:.2f} minimum required to deploy. Exiting.")
+        subject, body = build_insufficient_funds_notification(bucket_values, cash, args.broker, args.dry_run)
+        send_text(subject, body)
         sys.exit(0)
 
     # ── MARKET DATA ──
@@ -729,9 +868,13 @@ def main():
 
     # ── EXECUTE ──
     if args.broker == "alpaca":
-        place_orders_alpaca(client, l3, dry_run=args.dry_run)
+        order_results = place_orders_alpaca(client, l3, dry_run=args.dry_run)
     else:
-        place_orders_public(headers, l3, dry_run=args.dry_run)
+        order_results = place_orders_public(headers, l3, dry_run=args.dry_run)
+
+    # ── NOTIFY ──
+    subject, body = build_notification(bucket_values, contribution, l1, l2, stats, l3, args.broker, args.dry_run, order_results)
+    send_text(subject, body)
 
 
 if __name__ == "__main__":

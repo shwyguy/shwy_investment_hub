@@ -736,7 +736,7 @@ def build_notification(bucket_values, contribution, l1, l2, stats, l3, broker, d
         order_lines.append(f"{b}:")
         order_lines.append("  " + "  ".join(fmt_etf(t) for t in etfs))
     orders_section = "\n".join(order_lines)
-
+    
     # After
     after_lines = [f"── After ──\nBalance: ${new_total:,.2f}"]
     for b in BUCKETS:
@@ -747,8 +747,7 @@ def build_notification(bucket_values, contribution, l1, l2, stats, l3, broker, d
                 new_val += a
         new_pct = new_val / new_total * 100
         tgt_pct = TARGET_ALLOC[b] * 100
-        check = " ✓" if abs(new_pct - tgt_pct) < 2 else ""
-        after_lines.append(f"{b}: {new_pct:.1f}% → {tgt_pct:.0f}%{check}")
+        after_lines.append(f"{b}: {new_pct:.1f}% → {tgt_pct:.0f}%")
     after_section = "\n".join(after_lines)
 
     subject = f"{'DRY RUN — ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}]"

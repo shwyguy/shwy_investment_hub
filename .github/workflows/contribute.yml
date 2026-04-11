@@ -34,4 +34,4 @@ jobs:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSKEY: ${{ secrets.GMAIL_APP_PASSKEY }}
           PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
-        run: python taxable_contribute.py --broker alpaca --simple
+        run: python taxable_contribute.py --broker alpaca --simple --dry-run

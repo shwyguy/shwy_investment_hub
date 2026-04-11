@@ -693,12 +693,12 @@ def build_info_notification(bucket_values, contribution, l1, l2, stats, broker, 
     invested = sum(bucket_values.values())
     short_weight = calc_short_term_weight(stats["vvix_value"])
 
-    bucket_section = "── Buckets (before) ──\n" + "\n".join(
+    bucket_section = "-- Buckets (before) --\n" + "\n".join(
         f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
         for b in BUCKETS
     )
 
-    l1_section = "── Layer 1 ──\n" + "\n".join(
+    l1_section = "-- Layer 1 --\n" + "\n".join(
         f"{b}: ${l1[b]:.2f}" for b in BUCKETS
     )
 
@@ -707,18 +707,17 @@ def build_info_notification(bucket_values, contribution, l1, l2, stats, broker, 
         for s in SUB_BUCKETS
     )
     l2_section = (
-        f"── Layer 2 ──\n"
+        f"-- Layer 2 --\n"
         f"SPY 1yr: {stats['bm_mean_long']*100:+.1f}%  VIX: {stats['bm_sd_long']*100:.1f}\n"
         f"SPY 3mo: {stats['bm_mean_short']*100:+.1f}%  VVIX: {stats['vvix_value']:.1f}\n"
         f"Short weight: {short_weight*100:.0f}%\n"
         f"\n{sub_lines}"
     )
 
-    subject = f"{'DRY RUN — ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}] — Info"
+    subject = f"{'DRY RUN -- ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}] -- Info"
     body = "\n\n".join([bucket_section, l1_section, l2_section])
     return subject, body
 
-# Builds the subject and body for the orders notification (ETF orders placed and final balance)
 def build_orders_notification(bucket_values, contribution, l3, broker, dry_run, order_results) -> tuple[str, str]:
     invested = sum(bucket_values.values())
     new_total = invested + contribution
@@ -730,7 +729,7 @@ def build_orders_notification(bucket_values, contribution, l3, broker, dry_run, 
             label += " (FAILED!!!!!)"
         return label
 
-    order_lines = ["── Orders ──", "Equities:"]
+    order_lines = ["-- Orders --", "Equities:"]
     for s in SUB_BUCKETS:
         etfs = [t for t in l3 if ETF_CATS.get(t) == s]
         order_lines.append(f"  {s}:")
@@ -741,7 +740,7 @@ def build_orders_notification(bucket_values, contribution, l3, broker, dry_run, 
         order_lines.append("  " + "  ".join(fmt_etf(t) for t in etfs))
     orders_section = "\n".join(order_lines)
 
-    after_lines = [f"── After ──\nBalance: ${new_total:,.2f}"]
+    after_lines = [f"-- After --\nBalance: ${new_total:,.2f}"]
     for b in BUCKETS:
         new_val = bucket_values[b]
         for t, a in l3.items():
@@ -750,13 +749,12 @@ def build_orders_notification(bucket_values, contribution, l3, broker, dry_run, 
                 new_val += a
         new_pct = new_val / new_total * 100
         tgt_pct = TARGET_ALLOC[b] * 100
-        after_lines.append(f"{b}: {new_pct:.1f}% → {tgt_pct:.0f}%")
+        after_lines.append(f"{b}: {new_pct:.1f}% -> {tgt_pct:.0f}%")
     after_section = "\n".join(after_lines)
 
-    subject = f"{'DRY RUN — ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}] — Orders"
+    subject = f"{'DRY RUN -- ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}] -- Orders"
     body = "\n\n".join([orders_section, after_section])
     return subject, body
-
 
 # Builds the subject and body for a market closed notification
 def build_market_closed_notification(bucket_values, cash, broker) -> tuple[str, str]:

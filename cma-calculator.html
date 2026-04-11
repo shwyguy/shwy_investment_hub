@@ -12,8 +12,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #020817; font-family: 'Courier New', monospace; color: #e2e8f0; }
-  input[type=range] { width: 100%; accent-color: #1d4ed8; }
+  body { background: #010f08; font-family: 'Courier New', monospace; color: #e2e8f0; }
+  input[type=range] { width: 100%; accent-color: #15803d; }
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 </style>
 </head>
@@ -151,8 +151,8 @@ function App() {
   }, [scenarioCode, voo, spaxx, floor, weekly]);
 
   const inp = {
-    background: "#0f172a",
-    border: "1px solid #1e3a5f",
+    background: "#0a1a0f",
+    border: "1px solid #1a3d28",
     borderRadius: "6px",
     color: "#e2e8f0",
     padding: "10px 14px",
@@ -172,24 +172,31 @@ function App() {
     display: "block",
   };
 
+  const hint = {
+    fontSize: "9px",
+    color: "#2d4a38",
+    marginTop: "6px",
+    lineHeight: "1.6",
+  };
+
   const parsed = parseCode(scenarioCode);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#020817", padding: "24px 20px", fontFamily: "'Courier New', monospace", color: "#e2e8f0" }}>
+    <div style={{ minHeight: "100vh", background: "#010f08", padding: "24px 20px", fontFamily: "'Courier New', monospace", color: "#e2e8f0" }}>
       <div style={{ maxWidth: "480px", margin: "0 auto" }}>
 
         <div style={{ marginBottom: "28px" }}>
-          <div style={{ fontSize: "10px", letterSpacing: "0.2em", color: "#1d4ed8", textTransform: "uppercase", marginBottom: "6px" }}>CMA BALANCE CALCULATOR</div>
+          <div style={{ fontSize: "10px", letterSpacing: "0.2em", color: "#15803d", textTransform: "uppercase", marginBottom: "6px" }}>CMA BALANCE CALCULATOR</div>
           <div style={{ fontSize: "22px", fontWeight: "700", color: "#f8fafc", lineHeight: 1.2 }}>What do I do this month?</div>
         </div>
 
-        <div style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "20px", marginBottom: "16px" }}>
-          <div style={{ fontSize: "10px", letterSpacing: "0.15em", color: "#334155", textTransform: "uppercase", marginBottom: "18px" }}>INPUTS</div>
+        <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "12px", padding: "20px", marginBottom: "16px" }}>
+          <div style={{ fontSize: "10px", letterSpacing: "0.15em", color: "#2d4a38", textTransform: "uppercase", marginBottom: "18px" }}>INPUTS</div>
 
           <div style={{ marginBottom: "14px" }}>
             <label style={lbl}>Scenario Code</label>
             <input style={{ ...inp, fontSize: "24px", letterSpacing: "0.3em" }}
-              placeholder="E51" value={scenarioCode} maxLength={3}
+              placeholder="" value={scenarioCode} maxLength={3}
               onChange={e => setScenarioCode(e.target.value.toUpperCase())} />
             {scenarioCode.length === 3 && !parsed && (
               <div style={{ fontSize: "10px", color: "#ef4444", marginTop: "4px" }}>Invalid — letter: S C F L E X, digits: 1 5 9</div>
@@ -199,16 +206,23 @@ function App() {
                 {CAPE_ZONES[parsed.capeCode].label} / {TREND_LABELS[parsed.trendCode]} / {FLAG_LABELS[parsed.flagCode]}
               </div>
             )}
+            {scenarioCode.length < 3 && (
+              <div style={hint}>
+                <div>1st: CAPE zone — S=Steal C=Cheap F=Fair L=Elevated E=Expensive X=Extreme</div>
+                <div>2nd: Trend — 1=Bearish 5=Neutral 9=Bullish</div>
+                <div>3rd: Flag — 1=Sell 5=Neutral 9=Buy</div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
             <div>
-              <label style={lbl}>VOO Value ($)</label>
-              <input style={inp} type="number" placeholder="1220.65" value={voo} onChange={e => setVoo(e.target.value)} />
+              <label style={lbl}>VOO Balance ($)</label>
+              <input style={inp} type="number" placeholder="0" value={voo} onChange={e => setVoo(e.target.value)} />
             </div>
             <div>
               <label style={lbl}>SPAXX Balance ($)</label>
-              <input style={inp} type="number" placeholder="597.92" value={spaxx} onChange={e => setSpaxx(e.target.value)} />
+              <input style={inp} type="number" placeholder="0" value={spaxx} onChange={e => setSpaxx(e.target.value)} />
             </div>
           </div>
 
@@ -216,7 +230,7 @@ function App() {
             <label style={lbl}>SPAXX Floor: <span style={{ color: "#94a3b8" }}>${floor}</span></label>
             <input type="range" min="10" max="500" step="5" value={floor}
               onChange={e => setFloor(Number(e.target.value))} />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#334155" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#2d4a38" }}>
               <span>$10</span><span>$500</span>
             </div>
           </div>
@@ -238,34 +252,34 @@ function App() {
                 { label: "Score", value: (result.score >= 0 ? "+" : "") + result.score,
                   sub: result.trendLabel + " / " + result.flagLabel, color: "#94a3b8" },
               ].map(s => (
-                <div key={s.label} style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px" }}>
-                  <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#475569", textTransform: "uppercase", marginBottom: "4px" }}>{s.label}</div>
+                <div key={s.label} style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "8px", padding: "10px" }}>
+                  <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#3d5c48", textTransform: "uppercase", marginBottom: "4px" }}>{s.label}</div>
                   <div style={{ fontSize: "13px", fontWeight: "700", color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: "9px", color: "#475569", marginTop: "2px" }}>{s.sub}</div>
+                  <div style={{ fontSize: "9px", color: "#3d5c48", marginTop: "2px" }}>{s.sub}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ background: "#0a1628", border: "1px solid " + result.color + "50", borderRadius: "12px", padding: "18px", marginBottom: "12px" }}>
+            <div style={{ background: "#061510", border: "1px solid " + result.color + "50", borderRadius: "12px", padding: "18px", marginBottom: "12px" }}>
               <div style={{ fontSize: "9px", letterSpacing: "0.15em", color: result.color, textTransform: "uppercase", marginBottom: "8px" }}>ACTION</div>
               <div style={{ fontSize: "15px", fontWeight: "700", color: "#f8fafc", marginBottom: "14px" }}>{result.action}</div>
 
-              <div style={{ background: "#020817", borderRadius: "6px", padding: "12px", marginBottom: "10px" }}>
-                <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#475569", textTransform: "uppercase", marginBottom: "8px" }}>Weekly ${weekly} split</div>
+              <div style={{ background: "#010f08", borderRadius: "6px", padding: "12px", marginBottom: "10px" }}>
+                <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#3d5c48", textTransform: "uppercase", marginBottom: "8px" }}>Weekly ${weekly} split</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                   <div>
-                    <div style={{ fontSize: "9px", color: "#334155", marginBottom: "2px" }}>VOO</div>
+                    <div style={{ fontSize: "9px", color: "#2d4a38", marginBottom: "2px" }}>VOO</div>
                     <div style={{ fontSize: "20px", fontWeight: "700", color: "#22c55e" }}>${result.vooContrib.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: "9px", color: "#334155", marginBottom: "2px" }}>SPAXX</div>
+                    <div style={{ fontSize: "9px", color: "#2d4a38", marginBottom: "2px" }}>SPAXX</div>
                     <div style={{ fontSize: "20px", fontWeight: "700", color: "#fbbf24" }}>${result.spaxxContrib.toFixed(2)}</div>
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: "#020817", borderRadius: "6px", padding: "12px" }}>
-                <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#475569", textTransform: "uppercase", marginBottom: "6px" }}>Balance action</div>
+              <div style={{ background: "#010f08", borderRadius: "6px", padding: "12px" }}>
+                <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#3d5c48", textTransform: "uppercase", marginBottom: "6px" }}>Balance action</div>
                 {result.balanceDir ? (
                   <div style={{ fontSize: "13px", color: result.balanceDir === "sell" ? "#ef4444" : "#22c55e" }}>
                     {result.balanceDir === "sell"
@@ -273,31 +287,31 @@ function App() {
                       : "Deploy $" + result.balanceAmount.toFixed(2) + " from SPAXX to VOO"}
                   </div>
                 ) : (
-                  <div style={{ fontSize: "13px", color: "#475569" }}>No balance action this month</div>
+                  <div style={{ fontSize: "13px", color: "#3d5c48" }}>No balance action this month</div>
                 )}
               </div>
             </div>
 
-            <div style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+            <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "8px", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
               {[
                 { label: "Active Portfolio", value: "$" + result.activePortfolio.toFixed(2) },
                 { label: "Deployable SPAXX", value: "$" + result.deployable.toFixed(2) },
                 { label: "Cash Pool",        value: result.cashPoolPct.toFixed(1) + "%" },
               ].map(s => (
                 <div key={s.label}>
-                  <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#334155", textTransform: "uppercase", marginBottom: "3px" }}>{s.label}</div>
+                  <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#2d4a38", textTransform: "uppercase", marginBottom: "3px" }}>{s.label}</div>
                   <div style={{ fontSize: "12px", fontWeight: "600", color: "#cbd5e1" }}>{s.value}</div>
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          <div style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "32px", textAlign: "center", color: "#334155", fontSize: "13px" }}>
+          <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "12px", padding: "32px", textAlign: "center", color: "#2d4a38", fontSize: "13px" }}>
             Enter your scenario code and balances above
           </div>
         )}
 
-        <div style={{ marginTop: "20px", fontSize: "10px", color: "#1e3a5f", textAlign: "center" }}>
+        <div style={{ marginTop: "20px", fontSize: "10px", color: "#1a3d28", textAlign: "center" }}>
           SCFLEX 159 / CMA PRISM SYSTEM
         </div>
       </div>

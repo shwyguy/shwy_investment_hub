@@ -26,4 +26,8 @@ jobs:
           pip install requests yfinance
 
       - name: Run CMA readout
+        env:
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
+          GMAIL_APP_PASSKEY: ${{ secrets.GMAIL_APP_PASSKEY }}
+          PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
         run: python cma_readout.py

@@ -875,7 +875,9 @@ def main():
     # ── NOTIFY ──
     subject, body = build_info_notification(bucket_values, contribution, l1, l2, stats, args.broker, args.dry_run)
     send_text(subject, body)
+    print(f"Sending: '{subject}' — {len(body)} chars")
     subject, body = build_orders_notification(bucket_values, contribution, l3, args.broker, args.dry_run, order_results)
+    print(f"Sending: '{subject}' — {len(body)} chars")
     send_text(subject, body)
 
 if __name__ == "__main__":

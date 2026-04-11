@@ -36,12 +36,12 @@ const TREND_LABELS = { "1": "Bearish", "5": "Neutral", "9": "Bullish" };
 const FLAG_LABELS  = { "1": "Sell",    "5": "Neutral", "9": "Buy" };
 
 function getAction(score, flagLabel) {
-  const exKey = score + "-" + flagLabel;
+  const exCode = score + "-" + flagLabel;
   const exceptions = {
     "-2-Sell": "Maintain split + sell 5%",
     "3-Buy":   "Maintain split + deploy 10%",
   };
-  if (exceptions[exKey]) return exceptions[exKey];
+  if (exceptions[exCode]) return exceptions[exCode];
   const actions = {
     "-4": "100% SPAXX + sell 5%",
     "-3": "50/50 + sell 5%",
@@ -56,11 +56,11 @@ function getAction(score, flagLabel) {
   return actions[String(score)] || "Unknown";
 }
 
-function parseKey(key) {
-  if (!key || key.length !== 3) return null;
-  const capeCode  = key[0].toUpperCase();
-  const trendCode = key[1];
-  const flagCode  = key[2];
+function parseCode(scenarioCode) {
+  if (!scenarioCode || scenarioCode.length !== 3) return null;
+  const capeCode  = scenarioCode[0].toUpperCase();
+  const trendCode = scenarioCode[1];
+  const flagCode  = scenarioCode[2];
   if (CAPE_ZONES[capeCode] === undefined) return null;
   if (TREND_SCORES[trendCode] === undefined) return null;
   if (FLAG_SCORES[flagCode] === undefined) return null;
@@ -82,14 +82,14 @@ function getActionColor(action) {
 }
 
 function App() {
-  const [key,    setKey]    = React.useState("");
-  const [voo,    setVoo]    = React.useState("");
-  const [spaxx,  setSpaxx]  = React.useState("");
-  const [floor,  setFloor]  = React.useState(50);
-  const [weekly, setWeekly] = React.useState(40);
+  const [scenarioCode, setScenarioCode] = React.useState("");
+  const [voo,          setVoo]          = React.useState("");
+  const [spaxx,        setSpaxx]        = React.useState("");
+  const [floor,        setFloor]        = React.useState(50);
+  const [weekly,       setWeekly]       = React.useState(40);
 
   const result = React.useMemo(() => {
-    const parsed = parseKey(key);
+    const parsed = parseCode(scenarioCode);
     if (!parsed) return null;
     const vooNum   = parseFloat(voo);
     const spaxxNum = parseFloat(spaxx);
@@ -148,7 +148,7 @@ function App() {
       vooContrib, spaxxContrib,
       balanceAmount, balanceDir,
     };
-  }, [key, voo, spaxx, floor, weekly]);
+  }, [scenarioCode, voo, spaxx, floor, weekly]);
 
   const inp = {
     background: "#0f172a",
@@ -172,7 +172,7 @@ function App() {
     display: "block",
   };
 
-  const parsed = parseKey(key);
+  const parsed = parseCode(scenarioCode);
 
   return (
     <div style={{ minHeight: "100vh", background: "#020817", padding: "24px 20px", fontFamily: "'Courier New', monospace", color: "#e2e8f0" }}>
@@ -187,14 +187,14 @@ function App() {
           <div style={{ fontSize: "10px", letterSpacing: "0.15em", color: "#334155", textTransform: "uppercase", marginBottom: "18px" }}>INPUTS</div>
 
           <div style={{ marginBottom: "14px" }}>
-            <label style={lbl}>Scenario Key</label>
+            <label style={lbl}>Scenario Code</label>
             <input style={{ ...inp, fontSize: "24px", letterSpacing: "0.3em" }}
-              placeholder="E51" value={key} maxLength={3}
-              onChange={e => setKey(e.target.value.toUpperCase())} />
-            {key.length === 3 && !parsed && (
+              placeholder="E51" value={scenarioCode} maxLength={3}
+              onChange={e => setScenarioCode(e.target.value.toUpperCase())} />
+            {scenarioCode.length === 3 && !parsed && (
               <div style={{ fontSize: "10px", color: "#ef4444", marginTop: "4px" }}>Invalid — letter: S C F L E X, digits: 1 5 9</div>
             )}
-            {key.length === 3 && parsed && (
+            {scenarioCode.length === 3 && parsed && (
               <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
                 {CAPE_ZONES[parsed.capeCode].label} / {TREND_LABELS[parsed.trendCode]} / {FLAG_LABELS[parsed.flagCode]}
               </div>
@@ -293,7 +293,7 @@ function App() {
           </div>
         ) : (
           <div style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "32px", textAlign: "center", color: "#334155", fontSize: "13px" }}>
-            Enter your scenario key and balances above
+            Enter your scenario code and balances above
           </div>
         )}
 

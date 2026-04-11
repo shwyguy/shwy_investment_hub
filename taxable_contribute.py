@@ -240,7 +240,14 @@ def send_text(subject: str, body: str):
     gmail_passkey = os.environ["GMAIL_APP_PASSKEY"]
     phone_number  = os.environ["PHONE_NUMBER"]
     to            = phone_number + "@vzwpix.com"
-    message       = "Subject: " + subject + "\n\n" + body
+    message = (
+        f"From: {gmail_user}\r\n"
+        f"To: {to}\r\n"
+        f"Subject: {subject}\r\n"
+        f"Content-Type: text/plain; charset=utf-8\r\n"
+        f"\r\n"
+        f"{body}"
+    ).encode("utf-8")
     smtp = smtplib.SMTP("smtp.gmail.com", 587)
     smtp.starttls()
     smtp.login(gmail_user, gmail_passkey)

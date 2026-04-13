@@ -81,6 +81,14 @@ function getActionColor(action) {
   return "#94a3b8";
 }
 
+function calcExternalDeposit(deployable, vooNum, targetPct) {
+  const t = targetPct / 100;
+  if (t === 0) return { addToSpaxx: 0, addToVoo: 0 };
+  const addToSpaxx = Math.max(0, (t * vooNum - (1 - t) * deployable) / (1 - t));
+  const addToVoo   = Math.max(0, deployable / t - (vooNum + deployable));
+  return { addToSpaxx, addToVoo };
+}
+
 function App() {
   const [scenarioCode, setScenarioCode] = React.useState("");
   const [voo,          setVoo]          = React.useState("");
@@ -102,6 +110,7 @@ function App() {
     const flagLabel  = FLAG_LABELS[flagCode];
     const trendLabel = TREND_LABELS[trendCode];
 
+    // ── Current state ──────────────────────────────────────────
     const deployable      = Math.max(0, spaxxNum - floor);
     const activePortfolio = vooNum + deployable;
     const cashPoolPct     = activePortfolio > 0 ? (deployable / activePortfolio) * 100 : 0;
@@ -141,12 +150,52 @@ function App() {
       balanceAmount = activePortfolio * 0.10; balanceDir = "buy";
     }
 
+    // ── External deposit section ───────────────────────────────
+    // Deposit calc based on current raw balances
+    const { addToSpaxx, addToVoo } = calcExternalDeposit(deployable, vooNum, zone.target);
+
+    // Post-deposit portfolio (whichever side needs topping up)
+    const postDepositDeployable      = deployable + addToSpaxx;
+    const postDepositVoo             = vooNum + addToVoo;
+    const postDepositActivePortfolio = postDepositVoo + postDepositDeployable;
+
+    // Funded action: force fundingScore=0, keep real trend+flag
+    const fundedScore  = Math.max(-4, Math.min(4, 0 + trendScore + flagScore));
+    const fundedAction = getAction(fundedScore, flagLabel);
+    const fundedColor  = getActionColor(fundedAction);
+
+    let fundedVooContrib, fundedSpaxxContrib;
+    if (fundedAction.startsWith("100% SPAXX")) {
+      fundedVooContrib = 0; fundedSpaxxContrib = weekly;
+    } else if (fundedAction.startsWith("50/50")) {
+      fundedVooContrib = weekly / 2; fundedSpaxxContrib = weekly / 2;
+    } else if (fundedAction.startsWith("Maintain")) {
+      fundedSpaxxContrib = weekly * maintainSpaxxPct;
+      fundedVooContrib   = weekly - fundedSpaxxContrib;
+    } else {
+      fundedVooContrib = weekly; fundedSpaxxContrib = 0;
+    }
+
+    let fundedBalanceAmount = 0, fundedBalanceDir = null;
+    if (fundedAction.includes("sell 5%")) {
+      fundedBalanceAmount = postDepositActivePortfolio * 0.05; fundedBalanceDir = "sell";
+    } else if (fundedAction.includes("deploy 5%")) {
+      fundedBalanceAmount = postDepositActivePortfolio * 0.05; fundedBalanceDir = "buy";
+    } else if (fundedAction.includes("deploy 10%")) {
+      fundedBalanceAmount = postDepositActivePortfolio * 0.10; fundedBalanceDir = "buy";
+    }
+
     return {
       zone, trendLabel, flagLabel,
       deployable, activePortfolio, cashPoolPct,
       fundingLabel, score, action, color,
       vooContrib, spaxxContrib,
       balanceAmount, balanceDir,
+      addToSpaxx, addToVoo,
+      fundedScore, fundedAction, fundedColor,
+      fundedVooContrib, fundedSpaxxContrib,
+      fundedBalanceAmount, fundedBalanceDir,
+      postDepositActivePortfolio,
     };
   }, [scenarioCode, voo, spaxx, floor, weekly]);
 
@@ -244,6 +293,8 @@ function App() {
 
         {result ? (
           <div>
+
+            {/* ── Status row ── */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }}>
               {[
                 { label: "CAPE Zone",   value: result.zone.label,   sub: "Target " + result.zone.target + "%", color: "#94a3b8" },
@@ -260,6 +311,7 @@ function App() {
               ))}
             </div>
 
+            {/* ── Main action ── */}
             <div style={{ background: "#061510", border: "1px solid " + result.color + "50", borderRadius: "12px", padding: "18px", marginBottom: "12px" }}>
               <div style={{ fontSize: "9px", letterSpacing: "0.15em", color: result.color, textTransform: "uppercase", marginBottom: "8px" }}>ACTION</div>
               <div style={{ fontSize: "15px", fontWeight: "700", color: "#f8fafc", marginBottom: "14px" }}>{result.action}</div>
@@ -292,7 +344,8 @@ function App() {
               </div>
             </div>
 
-            <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "8px", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+            {/* ── Portfolio summary ── */}
+            <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "8px", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "12px" }}>
               {[
                 { label: "Active Portfolio", value: "$" + result.activePortfolio.toFixed(2) },
                 { label: "Deployable SPAXX", value: "$" + result.deployable.toFixed(2) },
@@ -304,6 +357,56 @@ function App() {
                 </div>
               ))}
             </div>
+
+            {/* ── If perfectly funded ── */}
+            <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "12px", padding: "18px" }}>
+              <div style={{ fontSize: "9px", letterSpacing: "0.15em", color: "#86efac", textTransform: "uppercase", marginBottom: "14px" }}>If perfectly funded ({result.zone.target}% target)</div>
+
+              <div style={{ background: "#010f08", borderRadius: "6px", padding: "12px", marginBottom: "10px" }}>
+                <div style={{ fontSize: "9px", color: "#86efac", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "8px" }}>External deposit needed</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <div style={{ fontSize: "9px", color: "#86efac", marginBottom: "2px" }}>Add to SPAXX</div>
+                    <div style={{ fontSize: "16px", fontWeight: "700", color: result.addToSpaxx > 0 ? "#fbbf24" : "#3d5c48" }}>
+                      {result.addToSpaxx > 0 ? "$" + result.addToSpaxx.toFixed(2) : "N/A"}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "9px", color: "#86efac", marginBottom: "2px" }}>Add to VOO</div>
+                    <div style={{ fontSize: "16px", fontWeight: "700", color: result.addToVoo > 0 ? "#22c55e" : "#3d5c48" }}>
+                      {result.addToVoo > 0 ? "$" + result.addToVoo.toFixed(2) : "N/A"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: "#010f08", borderRadius: "6px", padding: "12px", marginBottom: "10px" }}>
+                <div style={{ fontSize: "9px", color: "#86efac", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "8px" }}>Action once funded (score {(result.fundedScore >= 0 ? "+" : "") + result.fundedScore})</div>
+                <div style={{ fontSize: "14px", fontWeight: "700", color: result.fundedColor, marginBottom: "10px" }}>{result.fundedAction}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <div style={{ fontSize: "9px", color: "#86efac", marginBottom: "2px" }}>VOO</div>
+                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#22c55e" }}>${result.fundedVooContrib.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "9px", color: "#86efac", marginBottom: "2px" }}>SPAXX</div>
+                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#fbbf24" }}>${result.fundedSpaxxContrib.toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {result.fundedBalanceDir ? (
+                <div style={{ background: "#010f08", borderRadius: "6px", padding: "12px" }}>
+                  <div style={{ fontSize: "9px", color: "#86efac", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "6px" }}>Balance action once funded</div>
+                  <div style={{ fontSize: "13px", color: result.fundedBalanceDir === "sell" ? "#ef4444" : "#22c55e" }}>
+                    {result.fundedBalanceDir === "sell"
+                      ? "Sell $" + result.fundedBalanceAmount.toFixed(2) + " of VOO to SPAXX"
+                      : "Deploy $" + result.fundedBalanceAmount.toFixed(2) + " from SPAXX to VOO"}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
           </div>
         ) : (
           <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "12px", padding: "32px", textAlign: "center", color: "#86efac", fontSize: "13px" }}>

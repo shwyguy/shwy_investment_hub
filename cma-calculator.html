@@ -110,7 +110,6 @@ function App() {
     const flagLabel  = FLAG_LABELS[flagCode];
     const trendLabel = TREND_LABELS[trendCode];
 
-    // ── Current state ──────────────────────────────────────────
     const deployable      = Math.max(0, spaxxNum - floor);
     const activePortfolio = vooNum + deployable;
     const cashPoolPct     = activePortfolio > 0 ? (deployable / activePortfolio) * 100 : 0;
@@ -150,16 +149,12 @@ function App() {
       balanceAmount = activePortfolio * 0.10; balanceDir = "buy";
     }
 
-    // ── External deposit section ───────────────────────────────
-    // Deposit calc based on current raw balances
     const { addToSpaxx, addToVoo } = calcExternalDeposit(deployable, vooNum, zone.target);
 
-    // Post-deposit portfolio (whichever side needs topping up)
     const postDepositDeployable      = deployable + addToSpaxx;
     const postDepositVoo             = vooNum + addToVoo;
     const postDepositActivePortfolio = postDepositVoo + postDepositDeployable;
 
-    // Funded action: force fundingScore=0, keep real trend+flag
     const fundedScore  = Math.max(-4, Math.min(4, 0 + trendScore + flagScore));
     const fundedAction = getAction(fundedScore, flagLabel);
     const fundedColor  = getActionColor(fundedAction);
@@ -294,6 +289,20 @@ function App() {
         {result ? (
           <div>
 
+            {/* ── Portfolio summary (first) ── */}
+            <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "8px", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+              {[
+                { label: "Active Portfolio", value: "$" + result.activePortfolio.toFixed(2) },
+                { label: "Deployable SPAXX", value: "$" + result.deployable.toFixed(2) },
+                { label: "Cash Pool",        value: result.cashPoolPct.toFixed(1) + "%" },
+              ].map(s => (
+                <div key={s.label}>
+                  <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#86efac", textTransform: "uppercase", marginBottom: "3px" }}>{s.label}</div>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#cbd5e1" }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
             {/* ── Status row ── */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }}>
               {[
@@ -342,20 +351,6 @@ function App() {
                   <div style={{ fontSize: "13px", color: "#86efac" }}>No balance action this month</div>
                 )}
               </div>
-            </div>
-
-            {/* ── Portfolio summary ── */}
-            <div style={{ background: "#061510", border: "1px solid #1a3d28", borderRadius: "8px", padding: "12px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-              {[
-                { label: "Active Portfolio", value: "$" + result.activePortfolio.toFixed(2) },
-                { label: "Deployable SPAXX", value: "$" + result.deployable.toFixed(2) },
-                { label: "Cash Pool",        value: result.cashPoolPct.toFixed(1) + "%" },
-              ].map(s => (
-                <div key={s.label}>
-                  <div style={{ fontSize: "9px", letterSpacing: "0.1em", color: "#86efac", textTransform: "uppercase", marginBottom: "3px" }}>{s.label}</div>
-                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#cbd5e1" }}>{s.value}</div>
-                </div>
-              ))}
             </div>
 
             {/* ── If perfectly funded ── */}

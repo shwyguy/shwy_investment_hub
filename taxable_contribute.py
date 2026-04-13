@@ -766,13 +766,12 @@ def build_market_closed_notification(bucket_values, cash, broker) -> tuple[str, 
 
     subject = f"Market closed [{broker}]"
     body = (
-        f"Market is closed — no orders placed.\n"
+        f"Market is closed -- no orders placed.\n"
         f"Cash available: ${cash:.2f}\n"
         f"Use --dry-run to simulate calculations.\n\n"
-        f"── Current Balance: ${total:,.2f} ──\n{bucket_lines}"
+        f"-- Current Balance: ${total:,.2f} --\n{bucket_lines}"
     )
     return subject, body
-
 
 # Builds the subject and body for an insufficient funds notification
 def build_insufficient_funds_notification(bucket_values, cash, broker, dry_run) -> tuple[str, str]:
@@ -784,10 +783,10 @@ def build_insufficient_funds_notification(bucket_values, cash, broker, dry_run) 
         for b in BUCKETS
     )
 
-    subject = f"{'DRY RUN — ' if dry_run else ''}Insufficient funds [{broker}]"
+    subject = f"{'DRY RUN -- ' if dry_run else ''}Insufficient funds [{broker}]"
     body = (
-        f"Cash available: ${cash:.2f} — ${MIN_CONTRIBUTION:.2f} minimum required to deploy.\n\n"
-        f"── Current Balance: ${total:,.2f} ──\n{bucket_lines}"
+        f"Cash available: ${cash:.2f} -- ${MIN_CONTRIBUTION:.2f} minimum required to deploy.\n\n"
+        f"-- Current Balance: ${total:,.2f} --\n{bucket_lines}"
     )
     return subject, body
 

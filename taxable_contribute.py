@@ -38,6 +38,7 @@ Usage:
     python taxable_contribute.py --broker alpaca        # live execution, Alpaca
     python taxable_contribute.py --dry-run              # simulate without placing orders
     python taxable_contribute.py --amount 120           # override contribution amount in USD
+    python taxable_contribute.py --simple               # equal sub-bucket split (bypasses Layer 2 scoring)
 
 Requirements:
     pip install alpaca-py requests yfinance pandas numpy exchange-calendars pytz
@@ -607,19 +608,17 @@ def layer3(allocations: dict[str, float]) -> dict[str, float]:
 # DIAGNOSTICS AND NOTIFICATIONS
 # ─────────────────────────────────────────────
 
-# Prints a full diagnostic summary of the contribution run
-def print_diagnostics(bucket_values, cash, l1, l2, stats, l3):
+# Prints the pre-order diagnostic summary
+def print_diagnostics_pre(bucket_values, cash, contribution, l1, l2, stats, l3):
     invested = sum(bucket_values.values())
-    total_after = invested + cash
-    targets_before = {b: invested * TARGET_ALLOC[b] for b in BUCKETS}
-    targets_after  = {b: total_after * TARGET_ALLOC[b] for b in BUCKETS}
 
     print(f"\n{'='*60}")
     print(f"  CONTRIBUTION DIAGNOSTIC — {datetime.today().strftime('%Y-%m-%d %H:%M')}")
     print(f"{'='*60}")
-    print(f"  Cash to deploy:           ${cash:.2f}")
-    print(f"  Current invested:         ${invested:.2f}")
-    print(f"  Total after contribution: ${total_after:.2f}")
+    print(f"  Cash available:       ${cash:.2f}")
+    print(f"  Deploying:            ${contribution:.2f}{'  (override)' if contribution != cash else ''}")
+    print(f"  Current invested:     ${invested:.2f}")
+    print(f"  Total account value:  ${invested + cash:.2f}")
 
     # ── CURRENT STATE ──
     print(f"\n{'─'*60}")
@@ -629,7 +628,7 @@ def print_diagnostics(bucket_values, cash, l1, l2, stats, l3):
     print(f"  {'-'*40}")
     for b in BUCKETS:
         curr_pct = (bucket_values[b] / invested) * 100 if invested > 0 else 0
-        pct_off  = calc_pct_off_target(bucket_values[b], targets_before[b]) * 100
+        pct_off  = calc_pct_off_target(bucket_values[b], invested * TARGET_ALLOC[b]) * 100
         print(f"  {b:<14} ${bucket_values[b]:>7.2f} {curr_pct:>6.1f}% {pct_off:>+7.2f}%")
 
     # ── LAYER 1 ──
@@ -665,128 +664,111 @@ def print_diagnostics(bucket_values, cash, l1, l2, stats, l3):
         print(f"  {etf:<8} ${amount:>7.2f}")
     print(f"  {'TOTAL':<8} ${sum(l3.values()):>7.2f}")
 
-    # ── POST-CONTRIBUTION ──
-    new_bucket_values = bucket_values.copy()
-    for etf, amount in l3.items():
-        cat = ETF_CATS.get(etf)
-        if cat in SUB_BUCKETS:
-            new_bucket_values["Equities"] += amount
-        elif cat:
-            new_bucket_values[cat] += amount
+
+# Prints the post-order diagnostic summary
+def print_diagnostics_post(new_bucket_values, actual_deployed, cash_remaining, funds_to_balance):
+    new_invested = sum(new_bucket_values.values())
 
     print(f"\n{'─'*60}")
     print(f"  POST-CONTRIBUTION BUCKET STATE")
     print(f"{'─'*60}")
-    print(f"  {'BUCKET':<14} {'NEW VAL':>8} {'NEW%':>7} {'OFF%':>8}")
+    print(f"  Deployed:             ${actual_deployed:.2f}")
+    print(f"  New invested:         ${new_invested:.2f}")
+    print(f"\n  {'BUCKET':<14} {'NEW VAL':>8} {'NEW%':>7} {'OFF%':>8}")
     print(f"  {'-'*40}")
     for b in BUCKETS:
         new_val = new_bucket_values[b]
-        new_pct = (new_val / total_after) * 100
-        new_off = calc_pct_off_target(new_val, targets_after[b]) * 100
+        new_pct = (new_val / new_invested) * 100
+        new_off = calc_pct_off_target(new_val, new_invested * TARGET_ALLOC[b]) * 100
         print(f"  {b:<14} ${new_val:>7.2f} {new_pct:>6.1f}% {new_off:>+7.2f}%")
 
+    print(f"\n  Cash remaining:       ${cash_remaining:.2f}")
+    print(f"  Total account value:  ${new_invested + cash_remaining:.2f}")
+    print(f"  Funds to balance:     ${funds_to_balance:,.2f}")
     print(f"\n{'='*60}\n")
 
-# Builds the subject and body for the contribution notification
-def build_notification(bucket_values, contribution, l1, l2, stats, l3, broker, dry_run, order_results) -> tuple[str, str]:
-    invested = sum(bucket_values.values())
-    new_total = invested + contribution
-    short_weight = calc_short_term_weight(stats["vvix_value"])
-    result_map = {etf: success for etf, _, success, _ in order_results}
 
-    # Bucket state
-    bucket_section = "-- Buckets (before) --\n" + "\n".join(
-        f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
-        for b in BUCKETS
-    )
+# Builds the subject and body for the contribution notification
+def build_notification(bucket_values, cash, contribution, l1, l2, stats, l3,
+                       new_bucket_values, cash_remaining, funds_to_balance,
+                       broker, dry_run, simple, order_results) -> tuple[str, str]:
+    invested = sum(bucket_values.values())
+    result_map = {etf: success for etf, _, success, _ in order_results}
 
     # Layer 1
     l1_section = "-- Layer 1 --\n" + "\n".join(
-        f"{b}: ${l1[b]:.2f}" for b in BUCKETS
+        f"{b}: ${l1[b]:.2f} (B: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}%, T: {TARGET_ALLOC[b]*100:.0f}%)"
+        for b in BUCKETS
     )
 
     # Layer 2
     sub_lines = "\n".join(
-        f"{s}: ${l2[s]:.2f}  ({stats['raw_scores_long'][s]*100:+.1f}%, {stats['raw_scores_short'][s]*100:+.1f}%)"
+        f"{s}: ${l2[s]:.2f} (L: {stats['raw_scores_long'][s]*100:+.1f}%, S: {stats['raw_scores_short'][s]*100:+.1f}%)"
         for s in SUB_BUCKETS
     )
     l2_section = (
         f"-- Layer 2 --\n"
-        f"SPY 1yr: {stats['bm_mean_long']*100:+.1f}%  VIX: {stats['bm_sd_long']*100:.1f}\n"
-        f"SPY 3mo: {stats['bm_mean_short']*100:+.1f}%  VVIX: {stats['vvix_value']:.1f}\n"
-        f"Short weight: {short_weight*100:.0f}%\n"
+        f"Mode: {'simple' if simple else 'scored'}\n"
+        f"SPY 1yr: {stats['bm_mean_long']*100:+.1f}%  SPY 3mo: {stats['bm_mean_short']*100:+.1f}%\n"
+        f"VIX: {stats['bm_sd_long']*100:.1f}  VVIX: {stats['vvix_value']:.1f}\n"
         f"\n{sub_lines}"
     )
 
-    # Orders
+    # Layer 3 / Orders
     def fmt_etf(t):
         label = f"{t}: ${l3[t]:.2f}"
         if result_map.get(t) is False:
             label += " (FAILED!!!!!)"
         return label
 
-    order_lines = ["-- Orders --", "Equities:"]
+    def get_ratio_str(etfs):
+        ratios = [ETF_SLOT_RATIOS[t] for t in etfs]
+        return ":".join(str(r) for r in ratios)
+
+    order_lines = ["-- Layer 3 / Orders --", "Equities:"]
     for s in SUB_BUCKETS:
         etfs = [t for t in l3 if ETF_CATS.get(t) == s]
-        order_lines.append(f"  {s}:")
+        order_lines.append(f"  {s} ({get_ratio_str(etfs)}):")
         order_lines.append("    " + "  ".join(fmt_etf(t) for t in etfs))
     for b in NON_EQUITY_BUCKETS:
         etfs = [t for t in l3 if ETF_CATS.get(t) == b]
-        order_lines.append(f"{b}:")
+        order_lines.append(f"{b} ({get_ratio_str(etfs)}):")
         order_lines.append("  " + "  ".join(fmt_etf(t) for t in etfs))
     orders_section = "\n".join(order_lines)
 
     # After
-    after_lines = [f"-- After --\nBalance: ${new_total:,.2f}"]
+    new_invested = sum(new_bucket_values.values())
+    after_lines = ["-- After --"]
     for b in BUCKETS:
-        new_val = bucket_values[b]
-        for t, a in l3.items():
-            cat = ETF_CATS.get(t)
-            if (b == "Equities" and cat in SUB_BUCKETS) or cat == b:
-                new_val += a
-        new_pct = new_val / new_total * 100
+        new_pct = new_bucket_values[b] / new_invested * 100
         tgt_pct = TARGET_ALLOC[b] * 100
         off_pct = (new_pct - tgt_pct) / tgt_pct * 100
-        after_lines.append(f"{b}: {new_pct:.1f}% (off {off_pct:+.1f}%)")
+        after_lines.append(f"{b}: ${new_bucket_values[b]:,.2f} (off {off_pct:+.1f}%)")
+    after_lines.append(f"\nCash remaining: ${cash_remaining:.2f}")
+    after_lines.append(f"Account total: ${new_invested + cash_remaining:,.2f}")
+    after_lines.append(f"\nFunds to balance: ${funds_to_balance:,.2f}")
     after_section = "\n".join(after_lines)
 
-    subject = f"{'DRY RUN -- ' if dry_run else ''}Contribution ${contribution:.2f} [{broker}]"
-    body = "\n\n".join([bucket_section, l1_section, l2_section, orders_section, after_section])
+    subject = f"{'DRY RUN -- ' if dry_run else ''}All Weather Contribution: ${contribution:.2f} [{broker}]"
+    body = "\n\n".join([l1_section, l2_section, orders_section, after_section])
     return subject, body
 
-# Builds the subject and body for a market closed notification
-def build_market_closed_notification(bucket_values, cash, broker) -> tuple[str, str]:
-    invested = sum(bucket_values.values())
-    total = invested + cash
-
-    bucket_lines = "\n".join(
-        f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
-        for b in BUCKETS
-    )
-
-    subject = f"Market closed [{broker}]"
-    body = (
-        f"Market is closed -- no orders placed.\n"
-        f"Cash available: ${cash:.2f}\n"
-        f"Use --dry-run to simulate calculations.\n\n"
-        f"-- Current Balance: ${total:,.2f} --\n{bucket_lines}"
-    )
-    return subject, body
 
 # Builds the subject and body for an insufficient funds notification
-def build_insufficient_funds_notification(bucket_values, cash, broker, dry_run) -> tuple[str, str]:
+def build_insufficient_funds_notification(bucket_values, cash, funds_to_balance, broker, dry_run) -> tuple[str, str]:
     invested = sum(bucket_values.values())
-    total = invested + cash
 
     bucket_lines = "\n".join(
-        f"{b}: {(bucket_values[b] / invested * 100) if invested > 0 else 0:.1f}% (tgt {TARGET_ALLOC[b]*100:.0f}%)"
+        f"{b}: ${bucket_values[b]:,.2f} (tgt {TARGET_ALLOC[b]*100:.0f}%, off {((bucket_values[b] / invested * 100) - TARGET_ALLOC[b] * 100) / (TARGET_ALLOC[b] * 100):+.1f}%)"
         for b in BUCKETS
     )
 
-    subject = f"{'DRY RUN -- ' if dry_run else ''}Insufficient funds [{broker}]"
+    subject = f"{'DRY RUN -- ' if dry_run else ''}All Weather Contribution: Insufficient [{broker}]"
     body = (
-        f"Cash available: ${cash:.2f} -- ${MIN_CONTRIBUTION:.2f} minimum required to deploy.\n\n"
-        f"-- Current Balance: ${total:,.2f} --\n{bucket_lines}"
+        f"Cash available: ${cash:.2f} -- ${MIN_CONTRIBUTION:.2f} minimum required.\n\n"
+        f"{bucket_lines}\n\n"
+        f"Account total (incl cash): ${invested + cash:,.2f}\n\n"
+        f"Funds to balance: ${funds_to_balance:,.2f}"
     )
     return subject, body
 
@@ -818,10 +800,8 @@ def main():
     bucket_values = get_bucket_values(position_values)
 
     if not args.dry_run and not is_market_open():
-        print("Market is closed. Use --dry-run to simulate. Exiting.")
-        subject, body = build_market_closed_notification(bucket_values, cash, args.broker)
-        send_text(subject, body)
-        sys.exit(0)
+        print("Market is closed — switching to dry run mode.")
+        args.dry_run = True
 
     # ── CONTRIBUTION AMOUNT ──
     if args.amount is not None:
@@ -834,8 +814,12 @@ def main():
         contribution = cash
 
     if contribution < MIN_CONTRIBUTION:
-        print(f"Insufficient funds ${contribution:.2f} — ${MIN_CONTRIBUTION:.2f} minimum required to deploy. Exiting.")
-        subject, body = build_insufficient_funds_notification(bucket_values, cash, args.broker, args.dry_run)
+        print(f"Insufficient funds — ${contribution:.2f} available, ${MIN_CONTRIBUTION:.2f} minimum required. Printing current state and exiting.")
+        invested          = sum(bucket_values.values())
+        total_if_balanced = max(bucket_values[b] / TARGET_ALLOC[b] for b in BUCKETS)
+        funds_to_balance  = max(0.0, total_if_balanced - invested - cash)
+        print_diagnostics_post(bucket_values, 0.0, cash, funds_to_balance)
+        subject, body = build_insufficient_funds_notification(bucket_values, cash, funds_to_balance, args.broker, args.dry_run)
         send_text(subject, body)
         sys.exit(0)
 
@@ -860,8 +844,8 @@ def main():
     combined = {**{b: l1[b] for b in NON_EQUITY_BUCKETS}, **l2}
     l3 = layer3(combined)
 
-    # ── DIAGNOSTICS ──
-    print_diagnostics(bucket_values, contribution, l1, l2, stats, l3)
+    # ── DIAGNOSTICS PRE ──
+    print_diagnostics_pre(bucket_values, cash, contribution, l1, l2, stats, l3)
 
     # ── EXECUTE ──
     if args.broker == "alpaca":
@@ -869,9 +853,30 @@ def main():
     else:
         order_results = place_orders_public(headers, l3, dry_run=args.dry_run)
 
+    # ── POST-CONTRIBUTION CALCULATIONS ──
+    actual_deployed   = sum(amount for _, amount, success, _ in order_results if success)
+    cash_remaining    = cash - actual_deployed
+    new_bucket_values = bucket_values.copy()
+    for etf, amount, success, _ in order_results:
+        if success:
+            cat = ETF_CATS.get(etf)
+            if cat in SUB_BUCKETS:
+                new_bucket_values["Equities"] += amount
+            elif cat:
+                new_bucket_values[cat] += amount
+    new_invested      = sum(new_bucket_values.values())
+    total_if_balanced = max(new_bucket_values[b] / TARGET_ALLOC[b] for b in BUCKETS)
+    funds_to_balance  = max(0.0, total_if_balanced - new_invested - cash_remaining)
+
+    # ── DIAGNOSTICS POST ──
+    print_diagnostics_post(new_bucket_values, actual_deployed, cash_remaining, funds_to_balance)
+
     # ── NOTIFY ──
-    subject, body = build_notification(bucket_values, contribution, l1, l2, stats, l3, args.broker, args.dry_run, order_results)
+    subject, body = build_notification(bucket_values, cash, contribution, l1, l2, stats, l3,
+                                       new_bucket_values, cash_remaining, funds_to_balance,
+                                       args.broker, args.dry_run, args.simple, order_results)
     send_text(subject, body)
+
 
 if __name__ == "__main__":
     main()

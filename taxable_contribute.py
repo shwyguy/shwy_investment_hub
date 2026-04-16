@@ -90,7 +90,9 @@ ALPACA_PAPER      = False
 PUBLIC_SECRET_KEY = os.environ.get("PUBLIC_SECRET_KEY")
 PUBLIC_ACCOUNT_ID = os.environ.get("PUBLIC_ACCOUNT_ID")
 
-MIN_CONTRIBUTION  = 10.00
+GMAIL_USERNAME    = os.environ.get("GMAIL_USERNAME")
+GMAIL_APP_PASSKEY = os.environ.get("GMAIL_APP_PASSKEY")
+PHONE_NUMBER      = os.environ.get("PHONE_NUMBER")
 
 # ─────────────────────────────────────────────
 # CONSTANTS
@@ -100,6 +102,8 @@ MIN_CONTRIBUTION  = 10.00
 BUCKETS            = ["Equities", "Metals", "Crypto", "Bonds", "REITs", "Commodities"]
 SUB_BUCKETS        = ["Thematic", "Industry", "Sector", "Developed", "Emerging"]
 NON_EQUITY_BUCKETS = ["Metals", "Crypto", "Bonds", "REITs", "Commodities"]
+
+MIN_CONTRIBUTION  = 10.00
 
 FLOOR_CAT = 2.00
 FLOOR_ETF = 1.00
@@ -237,15 +241,12 @@ def get_close_price_history(tickers: list[str]) -> pd.DataFrame:
 
 # Sends an SMS via Gmail SMTP to a carrier email-to-text gateway
 def send_text(subject: str, body: str):
-    gmail_user    = os.environ["GMAIL_USERNAME"]
-    gmail_passkey = os.environ["GMAIL_APP_PASSKEY"]
-    phone_number  = os.environ["PHONE_NUMBER"]
-    to            = phone_number + "@vzwpix.com"
-    message       = ("Subject: " + subject + "\n\n" + body).encode("utf-8")
+    to      = PHONE_NUMBER + "@vzwpix.com"
+    message = ("Subject: " + subject + "\n\n" + body).encode("utf-8")
     smtp = smtplib.SMTP("smtp.gmail.com", 587)
     smtp.starttls()
-    smtp.login(gmail_user, gmail_passkey)
-    smtp.sendmail(gmail_user, to, message)
+    smtp.login(GMAIL_USERNAME, GMAIL_APP_PASSKEY)
+    smtp.sendmail(GMAIL_USERNAME, to, message)
     smtp.quit()
 
 # ─────────────────────────────────────────────

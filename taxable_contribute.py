@@ -760,7 +760,7 @@ def build_insufficient_funds_notification(bucket_values, cash, funds_to_balance,
     invested = sum(bucket_values.values())
 
     bucket_lines = "\n".join(
-        f"{b}: ${bucket_values[b]:,.2f} (tgt {TARGET_ALLOC[b]*100:.0f}%, off {((bucket_values[b] / invested * 100) - TARGET_ALLOC[b] * 100) / (TARGET_ALLOC[b] * 100):+.1f}%)"
+        f"{b}: ${bucket_values[b]:,.2f} (tgt {TARGET_ALLOC[b]*100:.0f}%, off {((bucket_values[b] / invested * 100) - TARGET_ALLOC[b] * 100) / TARGET_ALLOC[b]:+.1f}%)"
         for b in BUCKETS
     )
 

@@ -1,31 +1,30 @@
-# Taxable Brokerage Strategy — Working Summary
+# All Weather Portfolio — Working Summary
 
-*Distilled from full development conversation. Last state: April 15, 2026.*
-
------
-
-## 1. Account Philosophy & Goals
-
-Two purposes for this account:
-
-1. **Early Retirement Bridge** — Provide investable funds to draw from before penalty-free 401k/IRA withdrawal age (targeting mid-50s).
-1. **Tax Flexibility in Retirement** — Create a non-traditional-401k bucket to pull from in retirement, allowing control over the tax bill year to year.
-
-### All Weather Philosophy
-
-The portfolio is modeled on a Ray Dalio-style “All Weather” approach — diversified across asset classes that respond differently to various economic conditions (growth, recession, inflation, deflation). The five non-equity categories (Metals, Crypto, Bonds, REITs, Commodities) plus a speculative Equities sleeve are designed to provide resilience regardless of market regime. The drift correction in Layer 1 exists primarily to *maintain tolerated exposure levels* to each of these categories over time — ensuring no single category grows to dominate or shrink to irrelevance. The contrarian nature of contribution-based rebalancing is a byproduct of that goal, not the goal itself.
-
-### Core Operating Principles
-
-- **Never sell to rebalance** — this is a taxable account; selling triggers capital gains. All rebalancing is done via future contribution redirection only.
-- **iShares ETFs only** — all ETFs must come from iShares.
-- **ETF_CATS is permanent** — ETFs are only ever added to the master registry, never removed, even when contributions to them stop.
-- **Buy and hold** — long-term compounding strategy. Selling is only permitted in exceptional circumstances and only from lots held >12 months to qualify for long-term capital gains rates. Brokerages default to FIFO (oldest lots first), which naturally favors long-term treatment over time.
-- **Algorithm deploys all available cash** — the script does not have a hardcoded contribution amount. It deploys whatever cash it finds in the account, unless overridden with `--amount`. This is intentional: a planned deposit of ~$100/week is the expected norm, but if extra cash is present from dividends, a larger deposit, or any other source, the algorithm will put it to work automatically.
+*Distilled from full development conversation. Last state: April 25, 2026.*
 
 -----
 
-## 2. Platform Selection, Rationale & Limitations
+## 1. Purpose, Philosophy & Strategy
+
+### Purpose
+
+This account acts as a long-duration retirement bucket intended to last a lifetime — drawn from alongside traditional accounts in retirement to provide supplemental income and extra control over taxes.
+
+### Philosophy
+
+The portfolio is modeled on a Ray Dalio-style “All Weather” approach — diversified across asset classes that respond differently to various economic conditions (growth, recession, inflation, deflation). It is made up of 6 different buckets — Equities (further subdivided into Thematic, Industry, Sector, Developed, and Emerging), Metals, Crypto, Bonds, REITs, and Commodities — each built from a curated selection of ETFs, that provide resilience and growth potential across any market regime. This philosophy is a natural fit for an account that needs to compound across decades and survive multiple economic cycles without being derailed.
+
+### Strategy
+
+New money is deployed each week across the six asset buckets according to a drift correction algorithm — always directed toward whatever is most underweight relative to its target allocation. This maintains the All Weather balance and risk exposure over time, ensuring no single category grows to dominate or shrink to irrelevance. Within the Equities bucket, sub-buckets are further allocated by relative performance. This rewards well performing assets, fueling growth. Within each bucket and sub-bucket, the specific ETF selections and their ratios are fixed for the contribution period. This allows room to implement conviction regardless of portfolio status. Existing positions are held indefinitely; selling is reserved for exceptional circumstances only, and when necessary is done from lots held longer than 12 months to qualify for long-term capital gains treatment.
+
+-----
+
+## 2. Account Type & Platform
+
+### Account Type
+
+This is a taxable brokerage account held with Alpaca (transitioning to Public in the future). As a taxable account, selling positions triggers capital gains — not an ideal constraint, but an inherent one that shapes the contribution-only rebalancing approach used throughout this strategy.
 
 ### Why Not M1 Finance
 
@@ -52,21 +51,17 @@ This strategy is conceptually similar to M1 Finance’s “Pies” system — au
 - Not all ETFs support notional (dollar-amount) orders. MUB currently fails with error code 125 (`Amount orders are not allowed for symbol MUB`). While all currently active ETFs in the portfolio work correctly, this could be a friction point if ETF selections change in the future. A feature request has been submitted; Public was receptive but offered no timeline.
 - The Public UI enforces a $5 minimum per ETF purchase. However this restriction does not apply to API orders — notional purchases at the algorithm’s $1 ETF floor go through without issue. This means the algorithm’s small allocations are only viable headlessly and would not be replicable manually through the app.
 
-### Current Strategy
+### Current Status
 
-Alpaca is the sole active contribution platform. Public holds a minimal balance (~$60) established during initial testing and will remain dormant until ready for the full transition. When the time comes, the full Alpaca balance will be transferred to Public to capture the 1% transfer bonus offered on incoming transfers, at which point Public becomes the primary and only platform due to its built-in recurring deposit feature.
+Alpaca is the sole active contribution platform. Public holds a minimal balance (~$60) established during initial testing and will remain dormant until ready for the full transition. When the time comes, the full Alpaca balance will be transferred to Public to capture the 1% transfer bonus offered on incoming transfers, at which point Public becomes the primary and only platform due to its built-in recurring deposit feature. In the meantime, contributions are set at an intentionally elevated rate — designed to aggressively build principal during a period of low expenses to maximize the eventual transfer bonus.
 
 -----
 
-## 3. Portfolio Structure & Current Strategy
+## 3. Holdings & Rationale
 
-### Current Strategy
+### Target Allocations
 
-**Contribution cadence:** ~$100/week deposited manually into Alpaca and deployed automatically each Tuesday via the scheduled GitHub Actions workflow. This elevated cadence is intentional — a period of low expenses is being used to aggressively build principal in Alpaca to maximize the transfer bonus. Once the transition to Public occurs, contribution amounts will reduce to a more sustainable weekly rate. The algorithm deploys whatever cash it finds, so dividends, extra deposits, or any other cash accumulation gets swept up automatically.
-
-### Portfolio Structure
-
-The portfolio is divided into 6 asset buckets reflecting the All Weather philosophy:
+The portfolio is structured around fixed target allocations across the six asset buckets. These drive future contributions to constantly attempt to maintain the desired balance. The allocations represent desired long-term exposure for each asset class — ideally unchanging, but open to revision if the thesis behind any category fundamentally changes.
 
 |Bucket     |Target %|
 |-----------|--------|
@@ -77,7 +72,7 @@ The portfolio is divided into 6 asset buckets reflecting the All Weather philoso
 |REITs      |10%     |
 |Commodities|5%      |
 
-The Equities bucket is further subdivided into 5 sub-buckets with no explicit target allocations between them — distribution is determined dynamically each contribution:
+The Equities bucket is further subdivided into 5 sub-buckets with no explicit target allocations between them — distribution is determined dynamically each contribution based on a scoring system:
 
 |Sub-Bucket|Focus                             |
 |----------|----------------------------------|
@@ -87,94 +82,43 @@ The Equities bucket is further subdivided into 5 sub-buckets with no explicit ta
 |Developed |Non-US developed market countries |
 |Emerging  |Emerging market countries         |
 
------
+### Master ETF Registry
 
-## 4. ETF Registry
+A permanent record of every ETF ever held or tracked in this portfolio. ETFs are only ever added, never removed — ensuring existing positions are always correctly categorized regardless of whether contributions are still being made.
 
-### ETF_CATS — Master Registry (permanent, additions only)
+|ETF |Category            |
+|----|--------------------|
+|IAUM|Metals              |
+|SLV |Metals              |
+|IBIT|Crypto              |
+|ETHA|Crypto              |
+|TLT |Bonds               |
+|MUB |Bonds               |
+|USRT|REITs               |
+|IDGT|REITs               |
+|CMDY|Commodities         |
+|COMT|Commodities         |
+|EWJ |Developed (Equities)|
+|EWG |Developed (Equities)|
+|EWY |Developed (Equities)|
+|MCHI|Emerging (Equities) |
+|INDA|Emerging (Equities) |
+|ITA |Industry (Equities) |
+|IGV |Industry (Equities) |
+|IHE |Industry (Equities) |
+|IBB |Industry (Equities) |
+|IYK |Sector (Equities)   |
+|IYH |Sector (Equities)   |
+|IYW |Sector (Equities)   |
+|IYE |Sector (Equities)   |
+|IYF |Sector (Equities)   |
+|IYC |Sector (Equities)   |
+|ARTY|Thematic (Equities) |
+|ICLN|Thematic (Equities) |
 
-```python
-ETF_CATS = {
-    # Metals
-    "IAUM": "Metals",
-    "SLV":  "Metals",
-    # Crypto
-    "IBIT": "Crypto",
-    "ETHA": "Crypto",
-    # Bonds
-    "TLT":  "Bonds",
-    "MUB":  "Bonds",
-    # REITs
-    "USRT": "REITs",
-    "IDGT": "REITs",
-    # Commodities
-    "CMDY": "Commodities",
-    "COMT": "Commodities",
-    # Equities — Developed
-    "EWJ":  "Developed",
-    "EWG":  "Developed",
-    "EWY":  "Developed",    # Technically Emerging per MSCI but classified here as Developed
-    # Equities — Emerging
-    "MCHI": "Emerging",
-    "INDA": "Emerging",
-    # Equities — Industry
-    "ITA":  "Industry",
-    "IGV":  "Industry",
-    "IHE":  "Industry",
-    "IBB":  "Industry",
-    # Equities — Sector
-    "IYK":  "Sector",
-    "IYH":  "Sector",
-    "IYW":  "Sector",
-    "IYE":  "Sector",
-    "IYF":  "Sector",
-    "IYC":  "Sector",
-    # Equities — Thematic
-    "ARTY": "Thematic",
-    "ICLN": "Thematic",
-}
-```
+### Current Selection and Rationale
 
-### ETF_SLOT_RATIOS — Active Contributing ETFs & Ratios
-
-```python
-ETF_SLOT_RATIOS = {
-    # Metals
-    "IAUM": 7,
-    "SLV":  2,
-    # Crypto
-    "IBIT": 7,
-    "ETHA": 2,
-    # Bonds
-    "TLT":  2,
-    "MUB":  1,
-    # REITs
-    "USRT": 2,
-    "IDGT": 1,
-    # Commodities
-    "CMDY": 1,
-    "COMT": 1,
-    # Equities — Developed
-    "EWJ":  1,
-    "EWY":  1,
-    # Equities — Emerging
-    "MCHI": 1,
-    "INDA": 1,
-    # Equities — Industry
-    "IBB":  1,
-    "IGV":  1,
-    # Equities — Sector
-    "IYF":  1,
-    "IYK":  1,
-    # Equities — Thematic
-    "ARTY": 1,
-    "ICLN": 1,
-}
-```
-
-**Rule on ratios:** The ratio within each ETF pair is a current conviction, not a fixed rule. It can be changed at any time for future contributions. Within-pair drift is intentionally ignored and never corrected — the ratio only governs how *new contributions* are split, not the current holdings.
-
-### Current ETF Selection Rationale
+The selections and ratios reflect current conviction, not permanent decisions — both the choice of ETF and the ratio between pairs can change at any time for future contributions. All ETFs are selected from the iShares fund family. What follows captures the reasoning at this point in time.
 
 **Metals — IAUM + SLV (7:2)**
 IAUM (Gold) is the primary holding; SLV (Silver) is the secondary speculative position. The 7:2 ratio reflects higher conviction in gold as the primary store of value.
@@ -208,7 +152,7 @@ ARTY (AI & Robotics) captures the broad AI and robotics wave — a structural th
 
 ### Rotated-Out ETFs Still Held
 
-These ETFs were actively contributed to at some point but have since been rotated out of `ETF_SLOT_RATIOS`. They remain in `ETF_CATS` permanently so their existing holdings are correctly categorized for drift correction. No new contributions will be made to them.
+These ETFs were actively contributed to at some point but have since been rotated out. They remain in the master registry permanently so their existing holdings are correctly categorized for drift correction. No new contributions will be made to them.
 
 Developed:
 
@@ -243,7 +187,9 @@ Sector:
 
 -----
 
-## 5. The 3-Layer Contribution Algorithm
+## 4. Contribution Algorithm
+
+The algorithm deploys all available cash in the account each run — not just the planned contribution amount. Dividends, extra deposits, or any other accumulated cash are swept up automatically. A specific amount can be specified to override this behavior. A minimum of $10 is required for the algorithm to run.
 
 ### Layer 1 — Minimax Drift Correction (All Weather Maintenance)
 
@@ -307,7 +253,7 @@ weight_i = e^(SD_score_i) / sum(e^(SD_score_j) for all j)
 
 ### Layer 3 — Fixed ETF Pair Ratios
 
-**Purpose:** Split each bucket/sub-bucket dollar allocation between its two contributing ETFs according to the fixed ratios in ETF_SLOT_RATIOS.
+**Purpose:** Split each bucket/sub-bucket dollar allocation between its two contributing ETFs according to the fixed ratios defined for each pair.
 
 **How it works:**
 
@@ -320,7 +266,7 @@ Within-pair drift is never corrected. The new contribution always uses the fixed
 
 -----
 
-## 6. Code Architecture
+## 5. Code Architecture
 
 ### Entry Points
 
@@ -373,6 +319,83 @@ TARGET_ALLOC = {
 BUCKETS            = ["Equities", "Metals", "Crypto", "Bonds", "REITs", "Commodities"]
 SUB_BUCKETS        = ["Thematic", "Industry", "Sector", "Developed", "Emerging"]
 NON_EQUITY_BUCKETS = ["Metals", "Crypto", "Bonds", "REITs", "Commodities"]
+
+# Permanent master registry of every ETF ever held or tracked in this portfolio.
+# ETFs are only ever added, never removed — ensures all positions can always be categorized.
+ETF_CATS = {
+    # Metals
+    "IAUM": "Metals",
+    "SLV":  "Metals",
+    # Crypto
+    "IBIT": "Crypto",
+    "ETHA": "Crypto",
+    # Bonds
+    "TLT":  "Bonds",
+    "MUB":  "Bonds",
+    # REITs
+    "USRT": "REITs",
+    "IDGT": "REITs",
+    # Commodities
+    "CMDY": "Commodities",
+    "COMT": "Commodities",
+    # Equities — Developed
+    "EWJ":  "Developed",
+    "EWG":  "Developed",
+    "EWY":  "Developed",    # Technically Emerging per MSCI but classified here as Developed
+    # Equities — Emerging
+    "MCHI": "Emerging",
+    "INDA": "Emerging",
+    # Equities — Industry
+    "ITA":  "Industry",
+    "IGV":  "Industry",
+    "IHE":  "Industry",
+    "IBB":  "Industry",
+    # Equities — Sector
+    "IYK":  "Sector",
+    "IYH":  "Sector",
+    "IYW":  "Sector",
+    "IYE":  "Sector",
+    "IYF":  "Sector",
+    "IYC":  "Sector",
+    # Equities — Thematic
+    "ARTY": "Thematic",
+    "ICLN": "Thematic",
+}
+
+# Current active ETF selections and their contribution ratio weights.
+# Reflects current conviction only — both selections and ratios can change at any time.
+ETF_SLOT_RATIOS = {
+    # Metals
+    "IAUM": 7,
+    "SLV":  2,
+    # Crypto
+    "IBIT": 7,
+    "ETHA": 2,
+    # Bonds
+    "TLT":  2,
+    "MUB":  1,
+    # REITs
+    "USRT": 2,
+    "IDGT": 1,
+    # Commodities
+    "CMDY": 1,
+    "COMT": 1,
+    # Equities — Developed
+    "EWJ":  1,
+    "EWY":  1,
+    # Equities — Emerging
+    "MCHI": 1,
+    "INDA": 1,
+    # Equities — Industry
+    "IBB":  1,
+    "IGV":  1,
+    # Equities — Sector
+    "IYF":  1,
+    "IYK":  1,
+    # Equities — Thematic
+    "ARTY": 1,
+    "ICLN": 1,
+}
 ```
 
 ### Core Functions
@@ -488,7 +511,7 @@ headers = {
 
 -----
 
-## 7. Deployment & Notifications
+## 6. Deployment & Notifications
 
 ### GitHub Actions
 
@@ -548,6 +571,14 @@ The script sends SMS notifications via Gmail SMTP to the Verizon MMS gateway (`@
 
 -----
 
+## 7. Workflow
+
+Each week, approximately $100 is manually deposited into the Alpaca account. The contribution script runs automatically every Tuesday, deploying whatever cash is available across the six asset buckets according to the algorithm. An SMS notification arrives confirming what was deployed, the post-contribution state of each bucket, and the funds needed to fully balance the portfolio. No further action is required until the next week.
+
+Once the transition to Public occurs, even the manual deposit step disappears — automatic recurring contributions will be scheduled directly through the platform, reducing the weekly workflow to simply receiving and reviewing the SMS notification.
+
+-----
+
 ## 8. Key Design Decisions & Development History
 
 **March 2026**
@@ -592,6 +623,8 @@ The script sends SMS notifications via Gmail SMTP to the Verizon MMS gateway (`@
 
 ## 10. Project Files Reference
 
+The following files are uploaded to this project and accessible across all chats:
+
 **`taxable_contribute.py`** — The current, canonical contribution script. Supports both Alpaca and Public via the `--broker` flag. This is the active source of truth.
 
 **`contribute.yml`** — The GitHub Actions workflow file. Defines the weekly Tuesday schedule, Python environment setup, dependency installation, and the command used to run the contribution script with all required secrets.
@@ -600,7 +633,7 @@ The script sends SMS notifications via Gmail SMTP to the Verizon MMS gateway (`@
 
 **`public_contribute.py`** — Legacy Public-specific script, kept for historical reference. Do not treat as current.
 
-**`taxable_brokerage_working_summary.md`** — This document.
+**`taxable_brokerage_working_summary.md`** — A distilled summary of all strategy decisions, algorithm design, code architecture, and open questions. Kept in the project for reference — these instructions were derived from it and should be kept in sync with it.
 
 **`Claude-Taxable_brokerage_account_strategy.md`** — Full exported transcript of the original development conversation (March 4–17, 2026). Contains the reasoning and iteration behind the initial build — algorithm design, platform selection, ETF selection, and deployment setup. Subsequent development is captured in the working summary.
 
@@ -608,4 +641,4 @@ The script sends SMS notifications via Gmail SMTP to the Verizon MMS gateway (`@
 
 -----
 
-*This document captures the complete working state as of April 15, 2026. Use as the starting context for any continuation conversation.*
+*This document captures the complete working state as of April 25, 2026. Use as the starting context for any continuation conversation.*
